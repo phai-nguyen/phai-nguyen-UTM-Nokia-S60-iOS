@@ -48,8 +48,9 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
-          brew install meson ninja pkgconf bison
+          brew install meson ninja pkgconf bison gettext glib
           echo "$(brew --prefix bison)/bin" >> "$GITHUB_PATH"
+          echo "$(brew --prefix gettext)/bin" >> "$GITHUB_PATH"
           echo "QEMU_BUILD_TOOLCHAIN=READY"
 
       - name: Restore pinned sysroot without rebuilding its dependencies
