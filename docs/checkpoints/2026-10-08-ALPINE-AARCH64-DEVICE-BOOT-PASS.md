@@ -124,3 +124,23 @@ ping -c 3 1.1.1.1
 ```
 
 If DHCP cannot obtain a lease, inspect UTM VM's network toggle and NAT/shared-network mode, network-device attachment, and guest interface link status. Do not yet declare Internet/networking PASS. This checkpoint does not change build or firmware baseline.
+
+
+## Network DHCP lease PASS — iPhone device screenshot (2026-10-08)
+
+The user executed the following commands inside Alpine 3.24.2 on UTM SE Lite v8:
+
+```text
+localhost:~# ip link set eth0 up
+localhost:~# udhcpc -i eth0 -n -q
+udhcpc: started, v1.37.0
+udhcpc: broadcasting discover
+udhcpc: broadcasting select for 10.0.2.15, server 10.0.2.2
+udhcpc: lease of 10.0.2.15 obtained from 10.0.2.2, lease time 86400
+```
+
+**DEVICE PASS:** virtual Ethernet interface `eth0` can be activated, the guest's DHCP client communicates with QEMU NAT/SLIRP-style DHCP and receives IPv4 `10.0.2.15` with server `10.0.2.2`; 86,400-second lease.
+
+**NOT YET VERIFIED:** default route, DNS, outbound Internet or HTTPS connectivity. Request a further `ip route` and `wget -O /dev/null http://example.com` test. ICMP ping alone can be misleading with userspace NAT.
+
+Do not modify verified UTM Lite v8 source/IPA for network fix; no network defect has been established.
