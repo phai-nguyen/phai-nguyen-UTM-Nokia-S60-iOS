@@ -1,26 +1,32 @@
 name: UTM-SE-IPA
 
+# First pipeline: reproducible UTM SE (no JIT) with matching upstream sysroot.
+# This is NOT a Nokia/Symbian emulator yet.
 on:
+  push:
+    branches:
+      - build/utm-se-ipa-v1
   workflow_dispatch:
-    inputs:
-      sysroot_url:
-        description: "HTTPS URL to exact-match sysroot.tgz (contains sysroot-ios-tci-arm64)"
-        required: true
-        type: string
 
 permissions:
   contents: read
+  actions: read
+
+env:
+  UTM_SHA: 7eadb056ae0f91d979059544d0ddcd2d5a40be92
+  UTM_RUN_ID: "36090554968"
+  UTM_SYSROOT_ARTIFACT_ID: "10845528675"
 
 jobs:
   build:
-    name: Build unsigned UTM SE IPA (not Nokia boot)
-    runs-on: macos-15
-    timeout-minutes: 180
+    name: Build UTM SE iOS 15+ IPA (no Nokia machine)
+    runs-on: macos-26
+    timeout-minutes: 120
     steps:
       - name: Checkout project
         uses: actions/checkout@v4
 
-      - name: Checkout pinned upstream UTM
+      - name: Checkout exact UTM upstream revision
         uses: actions/checkout@v4
         with:
           repository: utmapp/UTM
@@ -29,54 +35,113 @@ jobs:
           submodules: recursive
           persist-credentials: false
 
-      - name: Install matching prebuilt sysroot
+      - name: Download pinned official UTM iOS TCI sysroot
+        id: pinned
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: Sysroot-ios-tci-arm64
+          repository: utmapp/UTM
+          run-id: 36090554968
+          github-token: ${{ github.token }}
+          path: upstream-artifact
+
+      - name: Fallback public upstream artifact mirror
+        if: steps.pinned.outcome == 'failure'
         shell: bash
-        env:
-          SYSROOT_URL: ${{ inputs.sysroot_url }}
         run: |
           set -Eeuo pipefail
-          [[ "$SYSROOT_URL" == https://* ]] || { echo "Only HTTPS URLs are allowed"; exit 1; }
-          echo "Downloading user-provided UTM sysroot archive"
-          curl --fail --location --retry 3 --connect-timeout 20 \
-            --output sysroot.tgz "$SYSROOT_URL"
-          tar -tzf sysroot.tgz | grep -q 'sysroot-ios-tci-arm64'
-          tar -xzf sysroot.tgz -C upstream/UTM
-          test -d upstream/UTM/sysroot-ios-tci-arm64
+          echo "Official API download failed. Retry a public mirror of this exact upstream run."
+          mkdir -p upstream-artifact
+          curl --fail --location --retry 4 --retry-all-errors --connect-timeout 30 \
+            --max-time 1200 --output upstream-artifact/sysroot-artifact.zip \
+            "https://nightly.link/utmapp/UTM/actions/runs/36090554968/Sysroot-ios-tci-arm64.zip"
+          unzip -t upstream-artifact/sysroot-artifact.zip
+          unzip -o upstream-artifact/sysroot-artifact.zip -d upstream-artifact
 
-      - name: Build and package iOS SE unsigned
+      - name: Verify exact version and install iOS-TCI sysroot
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          mkdir -p out/diagnostics
+          test "$(git -C upstream/UTM rev-parse HEAD)" = "$UTM_SHA"
+          test -s upstream-artifact/sysroot.tgz
+          # Expected UTM artifact contains sysroot.tgz with sysroot-ios-tci-arm64/ tree.
+          tar -tf upstream-artifact/sysroot.tgz > out/diagnostics/sysroot-file-list.txt
+          grep -F 'sysroot-ios-tci-arm64/' out/diagnostics/sysroot-file-list.txt >/dev/null
+          tar -xzf upstream-artifact/sysroot.tgz -C upstream/UTM
+          test -d upstream/UTM/sysroot-ios-tci-arm64
+          {
+            echo "UTM_SHA=$UTM_SHA"
+            echo "UTM_RUN_ID=$UTM_RUN_ID"
+            echo "UTM_SYSROOT_ARTIFACT_ID=$UTM_SYSROOT_ARTIFACT_ID"
+            echo "SYSROOT_SHA256=$(shasum -a 256 upstream-artifact/sysroot.tgz | cut -d' ' -f1)"
+            echo "OS=$(sw_vers -productVersion)"
+          } | tee out/diagnostics/upstream-provenance.txt
+          xcodebuild -version | tee out/diagnostics/xcode-version.txt
+
+      - name: Patch SwiftUI iOS 27-only calls for Xcode 26 SDK
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          mkdir -p out/diagnostics
+          python3 scripts/patch_utm_ios26.py upstream/UTM \
+            | tee out/diagnostics/ios26-compat-patch.txt
+
+      - name: Build and package independent UTM SE IPA
         shell: bash
         run: bash scripts/build_utm_se.sh
 
-      - name: Summary
+      - name: Verify resulting IPA
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          IPA="out/NokiaUTM-SE-v1-unsigned.ipa"
+          test -s "$IPA"
+          unzip -t "$IPA" > out/diagnostics/ipa-zip-check.txt
+          echo "IPA_SHA256=$(shasum -a 256 "$IPA" | cut -d' ' -f1)" \
+            | tee out/diagnostics/ipa-sha256.txt
+          APP="out/UTMSE.xcarchive/Products/Applications/UTM SE.app"
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist" \
+            | grep -F 'com.phai.nokias60.UTM-SE'
+          /usr/libexec/PlistBuddy -c 'Print :MinimumOSVersion' "$APP/Info.plist" \
+            | tee out/diagnostics/minimum-ios.txt
+          echo "BASELINE_IPA=PASS" > out/diagnostics/baseline-verification.txt
+
+      - name: Build summary
         if: always()
         shell: bash
         run: |
           mkdir -p out/diagnostics
+          if test -f out/diagnostics/baseline-verification.txt; then
+            state="IPA BUILT — unsigned, needs ESign; Nokia firmware NOT supported yet"
+          else
+            state="INCOMPLETE/FAILED — see diagnostic artifacts"
+          fi
+          printf "STATUS=%s\nUTM_SHA=%s\nRUN_ID=%s\n" \
+            "$state" "$UTM_SHA" "$UTM_RUN_ID" \
+            | tee out/diagnostics/PIPELINE-STATUS.txt
           {
             echo "### UTM-SE-IPA"
-            echo "- UTM commit: 7eadb056ae0f91d979059544d0ddcd2d5a40be92"
-            echo "- Build mode: iOS-SE / ARM64 / TCI / no JIT"
-            echo "- Nokia machine: **not yet implemented**"
-            if test -f out/NokiaUTM-SE-v1-unsigned.ipa; then
-              echo "- Status: **IPA READY (unsigned; requires ESign)**"
-            else
-              echo "- Status: **NO IPA** (check build log)"
-            fi
+            echo "- $state"
+            echo "- UTM commit: $UTM_SHA"
+            echo "- Upstream CI run: $UTM_RUN_ID"
+            echo "- iOS 15+ / ARM64 / TCI (no JIT)"
+            echo "- Nokia machine: not implemented"
           } >> "$GITHUB_STEP_SUMMARY"
-          xcodebuild -version > out/diagnostics/xcode-version.txt || true
 
-      - name: Upload IPA
+      - name: Upload unsigned IPA
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: NOKIA-UTM-SE-v1-IPA
+          name: NokiaUTM-SE-v1-unsigned-IPA
           path: out/*.ipa
           if-no-files-found: ignore
 
-      - name: Upload build logs
+      - name: Upload full diagnostic logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: NOKIA-UTM-SE-v1-LOG
+          name: NokiaUTM-SE-v1-build-logs
           path: out/diagnostics/
           if-no-files-found: warn
