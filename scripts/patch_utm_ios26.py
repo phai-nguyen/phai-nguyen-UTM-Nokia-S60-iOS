@@ -39,6 +39,17 @@ patches = [
 ''',
     ),
     (
+        "Platform/Shared/VMNavigationListView.swift",
+        '''            #if os(iOS) // ToolbarSpacer is unavailable on visionOS
+            if #available(iOS 26, *) {
+                ToolbarSpacer(.fixed, placement: .navigationBarLeading)
+            }
+            #endif
+''',
+        '''            // Skip iOS 26 toolbar spacing for the iOS 15-compatible build.
+''',
+    ),
+    (
         "Platform/iOS/UTMExternalSceneDelegate.swift",
         '''        if #available(iOS 27, *) {
             sceneAccessory {
