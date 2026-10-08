@@ -1,3 +1,5 @@
+> **Bắt đầu cuộc trò chuyện mới:** đọc [HANDOFF đầy đủ UTM v1–v8 → N95 OMAP2420](../handoff/NEWCHAT-UTM-N95-OMAP2420-2026-10-09.md) trước khi sửa code hoặc build. HANDOFF phân biệt các kết quả đã PASS trên iPhone và công việc ARM32/OMAP2 chưa thực hiện.
+
 # Nokia N95 / OMAP2420 — Research start (2026-10-09)
 
 ## Scope and baselines
