@@ -43,3 +43,13 @@ Tạo phép thử guest Linux ARM32 hợp pháp trên machine ARM32 sẵn có v�
 ## Quy định dự án
 
 Nghiên cứu giả lập/compatibility; không liên quan xâm nhập, malware hay credential. Không đưa firmware Nokia có bản quyền lên repo. Repository EKA2L1-S60-OMAP2420-iOS hoàn toàn độc lập.
+
+## CI incident — lượt ARM32 đầu tiên FAIL, sửa pkgconf (2026-10-09 ICT)
+
+- [Run #37855683131](https://github.com/phai-nguyen/phai-nguyen-UTM-Nokia-S60-iOS/actions/runs/37855683131) **FAIL** ở bước `Compile qemu-arm-softmmu and inspect experimental framework`; `BUILD-STATUS.txt`: `LAST_STAGE=configure-arm-softmmu`. Các bước checkout UTM, tải sysroot, cài công cụ, giải nén sysroot đều PASS. Artifact log: [#11584356313](https://github.com/phai-nguyen/phai-nguyen-UTM-Nokia-S60-iOS/actions/runs/37855683131/artifacts/11584356313).
+- **Lỗi chặn đầu tiên** tại `meson.build:1064`: `Dependency lookup for glib-2.0 with method 'pkg-config' failed: Pkg-config for machine host machine not found`. Log Meson xác nhận có tìm thấy `.../sysroot-ios-tci-arm64/host/bin/pkg-config` nhưng không chạy được; **không phải do thiếu mã OMAP2**. Các thăm dò Xen thiếu thư viện chỉ là kết quả feature probing, chưa phải lỗi dừng chính.
+- Root cause thao tác: script từng đưa `$PREFIX/host/bin` vào đầu `PATH` rồi lấy `command -v pkg-config`, khiến Meson dùng bản `pkg-config` không chạy được trong sysroot đã tải xuống.
+- **Đã sửa** trong commit [`a2005a8e51380a36382cbee96d48b0d8415c9bb7`](https://github.com/phai-nguyen/phai-nguyen-UTM-Nokia-S60-iOS/commit/a2005a8e51380a36382cbee96d48b0d8415c9bb7): chỉ định `$(brew --prefix pkgconf)/bin/pkgconf` (tool macOS runner), kiểm tra `glib-2.0` qua `--modversion/--cflags/--libs` trước configure; tiếp tục đọc metadata `.pc` của sysroot iOS.
+- [Run **#37856375355**](https://github.com/phai-nguyen/phai-nguyen-UTM-Nokia-S60-iOS/actions/runs/37856375355) tự kích hoạt sau commit sửa lỗi. **Khi ghi checkpoint: đang chạy**, chưa có compile PASS/FAIL mới, không khẳng định phát hành IPA Nokia.
+- Baseline v8 và 7 framework đã kiểm chứng trên iPhone **không thay đổi**. Bản ARM32 chỉ là nghiên cứu riêng, không có firmware N95 và không thử trên thiết bị.
+
