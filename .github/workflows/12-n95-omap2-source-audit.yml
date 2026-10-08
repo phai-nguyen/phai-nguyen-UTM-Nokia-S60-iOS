@@ -1,0 +1,89 @@
+name: NOKIA-N95-OMAP2-SOURCE-AUDIT
+
+on:
+  push:
+    branches:
+      - research/n95-omap2420-arm32
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    name: Historical QEMU OMAP2420 vs UTM QEMU10 inventory
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout source-audit tool
+        uses: actions/checkout@v4
+
+      - name: Checkout exact pinned UTM build metadata
+        uses: actions/checkout@v4
+        with:
+          repository: utmapp/UTM
+          ref: 7eadb056ae0f91d979059544d0ddcd2d5a40be92
+          path: pinned-utm
+          sparse-checkout: |
+            patches/sources
+            scripts/build_dependencies.sh
+          persist-credentials: false
+
+      - name: Validate Python script
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 -m py_compile scripts/audit_omap_sources.py
+
+      - name: Query and compare QEMU historical trees
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+          mkdir -p out/omap-audit
+          python3 scripts/audit_omap_sources.py pinned-utm out/omap-audit \
+            2>&1 | tee out/omap-audit/console.log
+          grep -q '^OMAP_SOURCE_AUDIT=PASS' out/omap-audit/console.log
+          grep -q '^MISSING=12/23' out/omap-audit/console.log
+
+      - name: Machine-check exact source provenance
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('out/omap-audit/omap2-source-audit.json')
+          j=json.loads(p.read_text())
+          assert j['status']=='PASS'
+          assert j['read_only'] is True
+          assert j['legacy']=='qemu/qemu@v9.1.0'
+          assert j['current']=='utmapp/qemu@v10.0.12-utm'
+          assert j['missing_count']==12
+          assert j['total_relevant']==23
+          assert 'hw/arm/omap2.c' in j['missing']
+          assert 'hw/arm/nseries.c' in j['missing']
+          assert 'arm-softmmu' not in j['ios_tci_targets']
+          assert 'arm1136' in j['surviving_cpu']
+          print('OMAP2_SOURCE_PROVENANCE=PASS')
+          PY
+          {
+            echo "### Nokia N95 / OMAP2420 — source inventory"
+            echo "- Historical QEMU: v9.1.0"
+            echo "- UTM Lite v8 QEMU: utmapp v10.0.12-utm"
+            echo "- Missing OMAP2/N-series source files: **12 of 23**"
+            echo "- ARM1136 CPU model source: present"
+            echo "- Current iOS TCI does **not** contain arm-softmmu"
+            echo "- No Nokia firmware or IPA built; Alpine ARM64 v8 unchanged"
+            echo "- Read omap2-source-audit.md in the uploaded audit artifact"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload source-audit report and logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: NOKIA-N95-OMAP2-SOURCE-AUDIT
+          path: |
+            out/omap-audit/
+          if-no-files-found: warn
