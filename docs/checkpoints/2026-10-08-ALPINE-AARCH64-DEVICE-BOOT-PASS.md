@@ -185,3 +185,16 @@ localhost:~#
 Suggested remaining minimal lifecycle test: `poweroff`, then relaunch the *same* virtual machine to ensure clean shutdown/reboot to live Alpine serial login. Full disk write/persistence is a separate test; do not install Alpine until user requests it.
 
 **Milestone:** UTM SE Lite v8 has user-device PASS for ESign-installed launch, UIKit ISO picker and sandbox import, VM creation with bundled raw CD, serial guest boot/login, aarch64 identification, virtual storage device discovery, DHCP/NAT, DNS and outbound HTTP. Nokia N95 OMAP2420/ARM32 remains entirely separate and not implemented.
+
+
+## Shutdown + reboot lifecycle — DEVICE PASS (2026-10-09)
+
+The user explicitly confirmed the UTM Lite v8 Alpine Linux aarch64 VM **shut down normally and started again normally** on their iPhone. This completes the basic interactive live-ISO VM lifecycle regression suite on device.
+
+**Verified on device:** ESign-signed app launch; Vietnamese UI (partially localized); iOS/UIKit ISO selection and sandbox copy; VM save with ISO bundled internally; UEFI and serial-console boot to Alpine Linux 3.24.2; root login and shell execution; `uname -m` reports `aarch64`; 4 GiB VirtIO `vda` and ISO `sr0` enumerated; guest NIC `eth0`, DHCP lease `10.0.2.15`, default route via `10.0.2.2`, DNS and outbound HTTP; graceful poweroff and successful relaunch.
+
+**Still outside tested scope:** disk writes/persistence through reboots, installed-OS boot from disk, package download/HTTPS, performance/battery testing, unrelated architectures, and Nokia OMAP2420/ARM32 firmware boot.
+
+**Freeze baseline:** the exact unsigned IPA artifact from [GitHub Actions run #37788063413](https://github.com/phai-nguyen/phai-nguyen-UTM-Nokia-S60-iOS/actions/runs/37788063413/artifacts/11554159956) (SHA256 `671535ffec7f866688537ee86db8c5eb53aeccbd78f3fc517dcb9dcf871e6caa`) is the v8 tested baseline. Changes after this artifact on `feat/vi-localization-lite-v8` are documentation/checkpoints, not a changed tested app. Do not casually merge OMAP/ARM32 into this working v8 baseline.
+
+**Next:** create a separate research/design branch to assess historical QEMU OMAP2420 sources and the ARM32 system-emulation engine, while retaining all working v8 artifact links and tests. Do not claim N95 compatibility until a board model and target firmware boot are actually verified.
