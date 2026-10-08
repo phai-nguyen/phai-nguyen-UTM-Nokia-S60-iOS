@@ -22,5 +22,11 @@
 | v5 S60-BOOT | Xử lý các khối còn thiếu theo log | Có bằng chứng boot tuần tự, không giả định |
 | nhánh nghiên cứu RM-356 | Khảo sát Freescale MXC300-30, đối chiếu i.MX31 | Có báo cáo register/memory-map trước khi code |
 
-## Handoff
-Trạng thái hiện tại chỉ là bootstrap. `UTM.xcodeproj`, frontend thực, các thư viện QEMU lớn và firmware không nằm trong repo này: workflow checkout UTM đúng commit để build. `build_utm_se.sh` chưa được kiểm thử trên macOS runner; không có IPA sẵn và không có machine Nokia. Bản `main` của các repo khác không bị thay đổi.
+## Handoff hiện tại — 08/10/2026
+
+- Build UTM SE baseline **PASS** tại [GitHub Actions #37733615950](https://github.com/phai-nguyen/phai-nguyen-UTM-Nokia-S60-iOS/actions/runs/37733615950).
+- Artifact `NokiaUTM-SE-v1-unsigned-IPA` và log đã có; mục tiêu iOS 15, bundle ID `com.phai.nokias60.UTM-SE`.
+- Xcode 26 SDK yêu cầu patch SwiftUI API iOS 27, `ToolbarSpacer` iOS 26; script `scripts/patch_utm_ios26.py` đã dùng thành công.
+- **Chưa có xác nhận cài/mở ứng dụng thực tế bằng ESign trên iPhone**. Chưa có Nokia machine/firmware loader và không chạy ROM Nokia.
+- Build UTM upstream từ commit cố định, tải sysroot chính thức qua Actions run `36090554968`. Không sao chép repo UTM nặng vào GitHub này.
+- Bước kế tiếp: kiểm thử IPA trên thiết bị trước khi chuyển sang OMAP2420/N95 MACHINE1. Các repo EKA2L1 được giữ nguyên.
