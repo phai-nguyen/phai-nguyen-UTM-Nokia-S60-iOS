@@ -52,3 +52,26 @@ Nokia N95 is an **ARM32 ARM1136 / OMAP2420-family** target, different from this 
 5. Keep v8 bootable Alpine ARM64 untouched as the regression baseline.
 
 Scope: emulator compatibility and legitimate Nokia/Symbian firmware research, not exploitation or unrelated security activity.
+
+
+## Device follow-up: login and commands PASS (2026-10-08 21:48 ICT)
+
+The user supplied a second screenshot of the UTM Lite v8 serial terminal confirming successful root shell login (the first attempt with password was rejected, then `root` logged in at the second prompt). Shell and on-screen keyboard work.
+
+Verified outputs:
+
+```text
+localhost:~# uname -m
+aarch64
+localhost:~# cat /etc/alpine-release
+3.24.2
+localhost:~# lsblk
+-sh: lsblk: not found
+localhost:~#
+```
+
+**Device PASS additionally:** guest interactive console input, user login, execution of Linux shell commands, confirmed `aarch64`, Alpine 3.24.2.
+
+**NOT a disk failure:** `lsblk` is absent from the minimal live environment; no block-device status can be concluded. Next user test: `cat /proc/partitions`, which reads kernel's block-device inventory without installing packages or modifying partitions. Need verify a `vda` or `sda` entry corresponding to the configured 4 GiB virtual disk (actual name may vary).
+
+Avoid installing Alpine or modifying disk partitions before checking the live system's available devices.
