@@ -1,0 +1,133 @@
+name: UTM-SE-LITE-V4-LOCAL-ISO
+
+on:
+  push:
+    branches: [fix/ios-local-iso-fallback-v4]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  UTM_SHA: 7eadb056ae0f91d979059544d0ddcd2d5a40be92
+
+jobs:
+  build:
+    name: Build Nokia UTM SE Lite v4 with local Documents ISO fallback
+    runs-on: macos-26
+    timeout-minutes: 120
+    steps:
+      - name: Checkout project scripts
+        uses: actions/checkout@v4
+
+      - name: Checkout pinned UTM upstream
+        uses: actions/checkout@v4
+        with:
+          repository: utmapp/UTM
+          ref: 7eadb056ae0f91d979059544d0ddcd2d5a40be92
+          path: upstream/UTM
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Download official matching UTM SE sysroot
+        uses: actions/download-artifact@v4
+        with:
+          name: Sysroot-ios-tci-arm64
+          repository: utmapp/UTM
+          run-id: 36090554968
+          github-token: ${{ github.token }}
+          path: upstream-artifact
+
+      - name: Verify and install sysroot
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          mkdir -p out/diagnostics
+          test "$(git -C upstream/UTM rev-parse HEAD)" = "$UTM_SHA"
+          test -s upstream-artifact/sysroot.tgz
+          tar -tzf upstream-artifact/sysroot.tgz | grep -q 'sysroot-ios-tci-arm64/' || {
+            echo "ERROR: missing sysroot-ios-tci-arm64 directory"; exit 1;
+          }
+          tar -xzf upstream-artifact/sysroot.tgz -C upstream/UTM
+          test -d upstream/UTM/sysroot-ios-tci-arm64
+          xcodebuild -version | tee out/diagnostics/xcode-version.txt
+          echo "UTM_SHA=$UTM_SHA" | tee out/diagnostics/provenance.txt
+
+      - name: Apply pinned iOS 26 compatibility patches
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 scripts/patch_utm_ios26.py upstream/UTM \
+            2>&1 | tee out/diagnostics/sdk-compat-patch.log
+
+      - name: Add local Documents ISO selector to Linux wizard
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 scripts/patch_utm_local_iso_picker.py upstream/UTM \
+            2>&1 | tee out/diagnostics/local-iso-patch.log
+          grep -F 'Làm mới danh sách ISO trong ứng dụng' \
+            upstream/UTM/Platform/Shared/VMWizardOSLinuxView.swift
+          (cd upstream/UTM && git diff --check && \
+            git diff -- Platform/Shared/VMWizardOSLinuxView.swift) \
+            > out/diagnostics/local-iso-diff.txt
+
+      - name: Build UTM SE with local ISO fallback
+        shell: bash
+        run: bash scripts/build_utm_se.sh
+
+      - name: Package Lite v4 with dyld-safe symbol stripping
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          mkdir -p out/diagnostics/lite-v4
+          bash scripts/build_dyld_safe_lite.sh \
+            "$PWD/out/NokiaUTM-SE-v1-unsigned.ipa" \
+            "$PWD/out/NokiaUTM-SE-Lite-v4-LOCAL-ISO-unsigned.ipa" \
+            "$PWD/out/diagnostics/lite-v4" \
+            2>&1 | tee out/diagnostics/lite-v4-package.log
+
+      - name: Verify IPA and summarize
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          IPA="out/NokiaUTM-SE-Lite-v4-LOCAL-ISO-unsigned.ipa"
+          test -s "$IPA"
+          unzip -t "$IPA" > out/diagnostics/lite-v4-zipcheck.log
+          python3 - <<'PY'
+          import json,os
+          from pathlib import Path
+          data=json.loads(Path("out/diagnostics/lite-v4/size-result.json").read_text())
+          report=[
+            "### Nokia UTM Lite v4 — Documents local ISO selector",
+            "- UTM SE source pinned to 7eadb056",
+            "- iOS 15.0+ / QEMU TCI without JIT",
+            "- Linux wizard includes a local Documents ISO selector, native system picker kept unchanged",
+            "- Preserved all seven QEMU CPU frameworks; DYLD pre/post check PASS",
+            "- Archive structure and Info.plist validation PASS",
+            f"- IPA size: {data['lite_bytes']/1048576:.2f} MiB",
+            f"- SHA256: {data['lite_sha256']}",
+            "- Status: **Build PASS; iPhone ISO selection test PENDING**",
+            "- This does not implement Nokia firmware hardware.",
+          ]
+          with open(os.environ["GITHUB_STEP_SUMMARY"],"a") as f:f.write("\n".join(report)+"\n")
+          print("\n".join(report))
+          PY
+
+      - name: Upload Lite v4 IPA
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: NokiaUTM-SE-Lite-v4-LOCAL-ISO-IPA
+          path: out/NokiaUTM-SE-Lite-v4-LOCAL-ISO-unsigned.ipa
+          compression-level: 0
+          if-no-files-found: error
+
+      - name: Upload complete error/build logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: NokiaUTM-SE-Lite-v4-LOGS
+          path: out/diagnostics/
+          if-no-files-found: warn
