@@ -167,3 +167,21 @@ wget --spider http://example.com
 ```
 
 BusyBox help shown in the screenshot supports `--spider`, which checks a URL without saving a file. If this succeeds, it supports HTTP and DNS access; if it fails, review the exact error. Optional later: test graceful `poweroff` and restart the VM to verify normal lifecycle. All already-passed boot, disk enumeration, UIKit picker, and Vietnamese UI should remain unchanged.
+
+
+## DNS + outbound HTTP Internet connectivity PASS — iPhone device screenshot (2026-10-08)
+
+After DHCP and default route (10.0.2.15 / gateway 10.0.2.2), user executed:
+
+```text
+localhost:~# wget --spider http://example.com
+Connecting to example.com (104.20.23.154:80)
+remote file exists
+localhost:~#
+```
+
+**DEVICE PASS:** DNS resolved `example.com` to an IPv4 address and BusyBox wget successfully contacted an HTTP service on TCP port 80 using the UTM QEMU user-mode NAT network. This verifies outbound DNS and HTTP in the Alpine aarch64 guest. Do not infer HTTPS/TLS, inbound port forwarding, other sites, or persistence from this one test.
+
+Suggested remaining minimal lifecycle test: `poweroff`, then relaunch the *same* virtual machine to ensure clean shutdown/reboot to live Alpine serial login. Full disk write/persistence is a separate test; do not install Alpine until user requests it.
+
+**Milestone:** UTM SE Lite v8 has user-device PASS for ESign-installed launch, UIKit ISO picker and sandbox import, VM creation with bundled raw CD, serial guest boot/login, aarch64 identification, virtual storage device discovery, DHCP/NAT, DNS and outbound HTTP. Nokia N95 OMAP2420/ARM32 remains entirely separate and not implemented.
