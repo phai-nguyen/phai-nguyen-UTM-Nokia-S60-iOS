@@ -87,9 +87,26 @@ export AR="$(xcrun --sdk iphoneos --find ar)"
 export NM="$(xcrun --sdk iphoneos --find nm)"
 export RANLIB="$(xcrun --sdk iphoneos --find ranlib)"
 export STRIP="$(xcrun --sdk iphoneos --find strip)"
-export PKG_CONFIG="$(command -v pkg-config)"
+# The downloaded UTM sysroot's host/bin/pkg-config may be an unavailable/stale
+# host tool on this runner. Explicitly select the freshly installed macOS
+# Homebrew pkgconf while resolving .pc metadata strictly from the iOS sysroot.
+HOST_PKGCONF="$(brew --prefix pkgconf)/bin/pkgconf"
+test -x "$HOST_PKGCONF" || { echo "Host pkgconf missing: $HOST_PKGCONF" >&2; exit 24; }
+export PKG_CONFIG="$HOST_PKGCONF"
 export PKG_CONFIG_LIBDIR="$PREFIX/lib/pkgconfig:$PREFIX/share/pkgconfig"
 export PKG_CONFIG_PATH="$PREFIX/lib/pkgconfig:$PREFIX/share/pkgconfig"
+unset PKG_CONFIG_SYSROOT_DIR
+{
+    echo "HOST_PKG_CONFIG=$PKG_CONFIG"
+    "$PKG_CONFIG" --version
+    "$PKG_CONFIG" --modversion glib-2.0
+    "$PKG_CONFIG" --cflags glib-2.0
+    "$PKG_CONFIG" --libs glib-2.0
+} > "$DIAG/pkg-config-preflight.txt" 2>&1 || {
+    cat "$DIAG/pkg-config-preflight.txt"
+    echo 'ERROR: macOS pkgconf cannot resolve iOS sysroot GLib; inspect pkg-config-preflight.txt' >&2
+    exit 25
+}
 export CFLAGS="-arch arm64 -isysroot $SDKROOT -I$PREFIX/include -F$PREFIX/Frameworks -Wno-unused-command-line-argument"
 export CPPFLAGS="$CFLAGS"
 export CXXFLAGS="$CFLAGS"
