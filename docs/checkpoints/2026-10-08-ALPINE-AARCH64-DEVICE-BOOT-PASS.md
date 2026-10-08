@@ -144,3 +144,26 @@ udhcpc: lease of 10.0.2.15 obtained from 10.0.2.2, lease time 86400
 **NOT YET VERIFIED:** default route, DNS, outbound Internet or HTTPS connectivity. Request a further `ip route` and `wget -O /dev/null http://example.com` test. ICMP ping alone can be misleading with userspace NAT.
 
 Do not modify verified UTM Lite v8 source/IPA for network fix; no network defect has been established.
+
+
+## NAT default route PASS; HTTP test not yet valid (2026-10-08)
+
+User-provided screenshot following a successful DHCP lease shows:
+
+```text
+localhost:~# ip route
+default via 10.0.2.2 dev eth0 metric 202
+10.0.2.0/24 dev eth0 scope link src 10.0.2.15
+```
+
+**DEVICE PASS:** QEMU guest receives an IPv4 address from DHCP and installs a default NAT route via `10.0.2.2`.
+
+The subsequent attempted HTTP test failed as a **command syntax typo**, not a connectivity test: `wget -0 /dev/null http://example.com` uses numeric digit zero instead of uppercase letter `O`; BusyBox reported `wget: unrecognized option: 0` and printed usage. **Do not label Internet connectivity PASS or FAIL based on this attempt.**
+
+Next requested read-only test:
+
+```sh
+wget --spider http://example.com
+```
+
+BusyBox help shown in the screenshot supports `--spider`, which checks a URL without saving a file. If this succeeds, it supports HTTP and DNS access; if it fails, review the exact error. Optional later: test graceful `poweroff` and restart the VM to verify normal lifecycle. All already-passed boot, disk enumeration, UIKit picker, and Vietnamese UI should remain unchanged.
