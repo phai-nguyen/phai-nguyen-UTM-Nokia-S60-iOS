@@ -75,3 +75,22 @@ localhost:~#
 **NOT a disk failure:** `lsblk` is absent from the minimal live environment; no block-device status can be concluded. Next user test: `cat /proc/partitions`, which reads kernel's block-device inventory without installing packages or modifying partitions. Need verify a `vda` or `sda` entry corresponding to the configured 4 GiB virtual disk (actual name may vary).
 
 Avoid installing Alpine or modifying disk partitions before checking the live system's available devices.
+
+## Block device discovery — DEVICE PASS (2026-10-08)
+
+The user supplied a third iPhone screenshot from Alpine's serial console:
+
+```text
+localhost:~# cat /proc/partitions
+major minor  #blocks  name
+   7     0    17328  loop0
+ 253     0  4194304  vda
+  11     0    91118  sr0
+localhost:~#
+```
+
+**Confirmed:** the 4 GiB VirtIO guest block device `/dev/vda` is visible (4,194,304 KiB blocks), and a ~89 MiB CD-ROM ISO device `/dev/sr0` is visible. `loop0` is expected kernel loop support. The earlier missing `lsblk` utility was only a missing user-space command, not a missing disk.
+
+**Not yet tested:** partition creation, disk writes, persistence, network/DHCP/internet, normal shutdown and restarting the same VM. Do not claim full VM storage/internet PASS yet.
+
+**Suggested next read-only device test:** `ip addr show`, `ip route`, `ping -c 3 1.1.1.1` (if a network is enabled); capture screenshot. `poweroff` when finished.
