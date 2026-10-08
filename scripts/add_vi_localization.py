@@ -180,7 +180,7 @@ def main(srcfile, outfile, locdir, upstreamdir, reportfile):
             raise RuntimeError("Changed bundle identity or minimum OS")
         if "vi" not in found.get("CFBundleLocalizations",[]):
             raise RuntimeError("Vietnamese language not registered")
-        if b'"Settings" = "Cài đặt";' not in dst.read(APP + "vi.lproj/Localizable.strings"):
+        if '"Settings" = "Cài đặt";'.encode("utf-8") not in dst.read(APP + "vi.lproj/Localizable.strings"):
             raise RuntimeError("Vietnamese translation not in output IPA")
         plistlib.loads(dst.read(APP + "vi.lproj/Localizable.stringsdict"))
     result = {
