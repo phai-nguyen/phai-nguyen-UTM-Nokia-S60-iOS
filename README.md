@@ -2,7 +2,16 @@
 
 Dự án nghiên cứu **UTM/QEMU trên iPhone**, phát triển ứng dụng IPA độc lập để từng bước thử nghiệm khả năng giả lập phần cứng Nokia S60. Không thay đổi EKA2L1.
 
-> **Trạng thái: v1 UTM SE IPA — GitHub Actions PASS. Chưa kiểm thử cài đặt trên iPhone, chưa có Nokia machine và chưa boot được firmware Nokia.**
+> **Trạng thái: UTM SE Lite v2 — GitHub Actions PASS và đã được kiểm thử mở giao diện trên iPhone. Chạy VM ARM chưa kiểm thử; Nokia machine chưa được triển khai, firmware Nokia chưa boot được.**
+
+## Bản Lite v2 hiện tại (08/10/2026)
+
+- **Kiểm thử thiết bị: PASS khởi động và hiển thị giao diện**, theo phản hồi người kiểm thử iPhone; chưa xác nhận chạy máy ảo ARM.
+- [Tải bản Lite v2 unsigned IPA](https://github.com/phai-nguyen/phai-nguyen-UTM-Nokia-S60-iOS/actions/runs/37743881078/artifacts/11534938198), ký ESign trước khi cài.
+- Kích thước IPA v2 **121.09 MiB**, giảm **41.43%** so với bản đầy đủ (206.76 MiB).
+- Lite v2 giữ toàn bộ thư viện QEMU có liên kết dyld; chỉ giảm symbol/debug. [Báo cáo root cause và device PASS](docs/LITE-v2-DYLD-FIX.md).
+- **Không dùng Lite v1 cũ** (xóa QEMU framework khiến `DYLD Library missing` và crash khi mở app).
+- Tiếp theo: kiểm tra tạo và khởi chạy máy ảo ARM nhỏ; chưa có phần cứng Nokia.
 
 ## Kết quả v1 (08/10/2026)
 
