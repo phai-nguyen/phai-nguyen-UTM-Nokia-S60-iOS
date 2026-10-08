@@ -96,9 +96,47 @@ export PKG_CONFIG="$HOST_PKGCONF"
 export PKG_CONFIG_LIBDIR="$PREFIX/lib/pkgconfig:$PREFIX/share/pkgconfig"
 export PKG_CONFIG_PATH="$PREFIX/lib/pkgconfig:$PREFIX/share/pkgconfig"
 unset PKG_CONFIG_SYSROOT_DIR
+# Upstream's exported sysroot bundles .pc files that embed absolute paths from
+# its ORIGINAL GitHub runner (for example /Users/runner/actions/runner-2/...).
+# Such references prevent Meson from including glibconfig.h and incorrectly
+# trigger "sizeof(size_t) doesn't match GLIB_SIZEOF_SIZE_T". Rebase metadata
+# only in the ephemeral downloaded CI sysroot; never alter any framework files.
+STAGE='rebase-pkgconfig-metadata'
+python3 - "$PREFIX" > "$DIAG/pkgconfig-rebase.txt" <<'PY'
+from pathlib import Path
+import re
+import sys
+
+sysroot = Path(sys.argv[1]).resolve()
+glib_pc = sysroot / "lib/pkgconfig/glib-2.0.pc"
+if not glib_pc.is_file():
+    sys.exit(f"Cannot find original iOS GLib metadata: {glib_pc}")
+data = glib_pc.read_text()
+match = re.search(r"(?m)^prefix=(.+)$", data)
+if not match:
+    sys.exit("GLib .pc has no literal prefix; cannot safely rebase")
+old_prefix = match.group(1).strip()
+new_prefix = str(sysroot)
+print(f"GLIB_OLD_PREFIX={old_prefix}")
+print(f"GLIB_NEW_PREFIX={new_prefix}")
+if not old_prefix.startswith("/") or not new_prefix.startswith("/"):
+    sys.exit("Refusing to rewrite a non-absolute prefix")
+updated = 0
+for pc in sorted(sysroot.rglob("*.pc")):
+    text = pc.read_text()
+    if old_prefix in text and old_prefix != new_prefix:
+        pc.write_text(text.replace(old_prefix, new_prefix))
+        updated += 1
+print(f"PKGCONFIG_FILES_REBASED={updated}")
+if old_prefix != new_prefix and updated == 0:
+    sys.exit("Expected original runner paths, but no pkg-config files were updated")
+print("PKGCONFIG_METADATA_REBASE=PASS")
+PY
+STAGE='pkg-config-preflight'
 {
     echo "HOST_PKG_CONFIG=$PKG_CONFIG"
     "$PKG_CONFIG" --version
+    "$PKG_CONFIG" --variable=prefix glib-2.0
     "$PKG_CONFIG" --modversion glib-2.0
     "$PKG_CONFIG" --cflags glib-2.0
     "$PKG_CONFIG" --libs glib-2.0
