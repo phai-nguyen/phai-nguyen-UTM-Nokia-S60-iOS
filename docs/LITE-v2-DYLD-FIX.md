@@ -29,13 +29,17 @@ Workflow: [UTM-SE-LITE-V2-DYLD-SAFE #37743881078](https://github.com/phai-nguyen
 - Artifact IPA: [NokiaUTM-SE-Lite-v2-unsigned-IPA](https://github.com/phai-nguyen/phai-nguyen-UTM-Nokia-S60-iOS/actions/runs/37743881078/artifacts/11534938198)
 - Artifact logs: [NokiaUTM-SE-Lite-v2-DYLD-LOGS](https://github.com/phai-nguyen/phai-nguyen-UTM-Nokia-S60-iOS/actions/runs/37743881078/artifacts/11534329786)
 
-## Chưa xác nhận
+## Kiểm thử thực tế ngày 08/10/2026
 
-**Chưa device PASS**. Mặc dù `otool -L` / ZIP PASS, vẫn có rủi ro liên quan đến ký mã các thư viện bị strip; cần thử ESign và mở app trên iOS 18.7. Sự ổn định của VM hay khả năng boot Nokia **chưa được xác nhận**. Không merge cho tới khi người dùng xác nhận app mở và thao tác được.
+Người kiểm thử đã ký và cài bản Lite v2 trên iPhone, xác nhận **ứng dụng vào giao diện bình thường, không crash về Home ở bước mở ứng dụng**. Đây là **DEVICE LAUNCH/UI PASS**, đồng thời khắc phục lỗi dyld ngay khi khởi động trong Lite v1.
+
+**Chưa kiểm thử:** tạo và chạy VM ARM, các chức năng nhập liệu/hiển thị, độ ổn định khi chạy lâu và khả năng boot ROM Nokia. Không suy diễn các phần đó là PASS.
+
+**Baseline hiện tại:** Lite v2, 121.09 MiB IPA unsigned, SHA256 `cc3ea51698d9e6c19b997114796c6a4969c75db46887ce80320c885d64fff5a2`. Bản đầy đủ vẫn được giữ làm đối chứng.
 
 ## Hướng thử
 
 1. Tải artifact ZIP v2, giải nén IPA, ký lại bằng ESign.
 2. Cài đè, trước khi thử nên sao lưu các máy ảo cấu hình hiện có. Bundle ID giữ nguyên `com.phai.nokias60.UTM-SE`.
-3. Kiểm tra mở app/khởi tạo máy ảo trên iPhone; nếu crash, gửi `.ips` mới, không sử dụng lại log Lite v1.
-4. Nếu v2 PASS: nghiên cứu bỏ CPU engines **tại bước link/build của QEMUKit**, không xóa nhị phân sau build.
+3. Bước mở ứng dụng đã PASS; **bước kế tiếp là tạo một VM ARM nhỏ và nhấn Start**, ghi lại hiện tượng nếu có lỗi.
+4. Sau khi VM PASS mới tiếp tục nghiên cứu giảm CPU engines **tại bước link/build của QEMUKit**, không xóa nhị phân sau build.
