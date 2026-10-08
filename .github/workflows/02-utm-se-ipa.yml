@@ -80,6 +80,14 @@ jobs:
           } | tee out/diagnostics/upstream-provenance.txt
           xcodebuild -version | tee out/diagnostics/xcode-version.txt
 
+      - name: Patch SwiftUI iOS 27-only calls for Xcode 26 SDK
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          mkdir -p out/diagnostics
+          python3 scripts/patch_utm_ios26.py upstream/UTM \
+            | tee out/diagnostics/ios26-compat-patch.txt
+
       - name: Build and package independent UTM SE IPA
         shell: bash
         run: bash scripts/build_utm_se.sh
