@@ -1,0 +1,86 @@
+name: UTM-ESIGN-IDENTITY-V5
+
+on:
+  push:
+    branches: [fix/esign-match-bundle-identity-v5]
+  workflow_dispatch:
+    inputs:
+      bundle_id:
+        description: "Exact App ID suffix of UTM's own ESign provisioning profile (not EKA2L1's bundle ID)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  safe-package-tests:
+    name: Validate safe identity repack
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Syntax and unit tests
+        run: |
+          set -Eeuo pipefail
+          python3 -m py_compile scripts/repack_esign_identity.py tests/test_esign_identity.py
+          python3 -m unittest discover -s tests -p 'test_esign_identity.py' -v
+
+  build-manual:
+    name: Repack Lite v2 with exact UTM provisioning App ID (unsigned)
+    if: github.event_name == 'workflow_dispatch'
+    needs: safe-package-tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download known-good Lite v2 IPA
+        uses: actions/download-artifact@v4
+        with:
+          name: NokiaUTM-SE-Lite-v2-unsigned-IPA
+          repository: phai-nguyen/phai-nguyen-UTM-Nokia-S60-iOS
+          run-id: 37743881078
+          github-token: ${{ github.token }}
+          path: source
+
+      - name: Set exact provisioning App ID and verify unchanged QEMU frameworks
+        shell: bash
+        env:
+          TARGET_APP_ID: ${{ inputs.bundle_id }}
+        run: |
+          set -Eeuo pipefail
+          mkdir -p out
+          python3 scripts/repack_esign_identity.py \
+            source/NokiaUTM-SE-Lite-v2-dyld-safe-unsigned.ipa \
+            out/NokiaUTM-SE-v5-ESignMatch-unsigned.ipa \
+            out/identity-report.json \
+            "$TARGET_APP_ID" | tee out/identity-repack.log
+          {
+            echo "### ESign Match — unsigned IPA packaged"
+            echo "- App ID (Bundle ID): \`$TARGET_APP_ID\`"
+            echo "- Source: device launch PASS Lite v2, all 7 QEMU libraries retained"
+            echo "- This workflow does not sign or include a provisioning profile."
+            echo "- **Do not install until ESign's profile application-identifier suffix EXACTLY matches this App ID.**"
+            echo "- UTM may not coexist with EKA2L1 if app IDs are identical (this is blocked here)."
+            echo "- Device ISO picker remains UNTESTED."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload IPA
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: NOKIA-UTM-V5-ESIGN-MATCH-UNSIGNED-IPA
+          path: out/NokiaUTM-SE-v5-ESignMatch-unsigned.ipa
+          compression-level: 0
+          if-no-files-found: error
+
+      - name: Upload identity audit
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: NOKIA-UTM-V5-ESIGN-MATCH-LOGS
+          path: |
+            out/identity-report.json
+            out/identity-repack.log
+          if-no-files-found: warn
