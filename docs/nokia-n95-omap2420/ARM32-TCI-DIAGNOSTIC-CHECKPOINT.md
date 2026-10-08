@@ -53,3 +53,11 @@ Nghiên cứu giả lập/compatibility; không liên quan xâm nhập, malware 
 - [Run **#37856375355**](https://github.com/phai-nguyen/phai-nguyen-UTM-Nokia-S60-iOS/actions/runs/37856375355) tự kích hoạt sau commit sửa lỗi. **Khi ghi checkpoint: đang chạy**, chưa có compile PASS/FAIL mới, không khẳng định phát hành IPA Nokia.
 - Baseline v8 và 7 framework đã kiểm chứng trên iPhone **không thay đổi**. Bản ARM32 chỉ là nghiên cứu riêng, không có firmware N95 và không thử trên thiết bị.
 
+
+## CI incident — `glibconfig.h` unresolved via stale sysroot prefixes (09/10/2026 ICT)
+
+- [ARM32 run #37856375355](https://github.com/phai-nguyen/phai-nguyen-UTM-Nokia-S60-iOS/actions/runs/37856375355) **FAIL**, bước `configure-arm-softmmu`, mặc dù pkgconf macOS đã nhận `glib-2.0 2.83.0` và `gmodule-no-export-2.0`.
+- Lỗi Meson tại `meson.build:1099:2`: `sizeof(size_t) doesn't match GLIB_SIZEOF_SIZE_T`; đây là check compile gồm `#include <glib.h>`, không được diễn giải là thật sự không tương thích bitness khi log cho thấy header flags hỏng.
+- Nguyên nhân từ log: `pkgconf --libs` và CFLAGS trả absolute prefix cũ `/Users/runner/actions/runner-2/_work/UTM/UTM/sysroot-iOS-TCI-arm64`, không tồn tại ở path hiện tại `/Users/runner/work/phai-nguyen-UTM-Nokia-S60-iOS/.../upstream/UTM/sysroot-ios-tci-arm64`.
+- [Commit sửa `55cf6099429044abf573fad4e9f7295fc3def1be`](https://github.com/phai-nguyen/phai-nguyen-UTM-Nokia-S60-iOS/commit/55cf6099429044abf573fad4e9f7295fc3def1be): đọc prefix trong `glib-2.0.pc`, rebase **chỉ** các file `.pc` trên bản sysroot tạm của CI, lưu `pkgconfig-rebase.txt` và preflight. Không sửa ELF/Mach-O, firmware hay bảy engine.
+- [ARM32 run #37856923827](https://github.com/phai-nguyen/phai-nguyen-UTM-Nokia-S60-iOS/actions/runs/37856923827) **mới khởi chạy**, chưa kết luận PASS/FAIL tại thời điểm ghi checkpoint.
