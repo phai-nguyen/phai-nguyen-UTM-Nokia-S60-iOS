@@ -94,3 +94,33 @@ localhost:~#
 **Not yet tested:** partition creation, disk writes, persistence, network/DHCP/internet, normal shutdown and restarting the same VM. Do not claim full VM storage/internet PASS yet.
 
 **Suggested next read-only device test:** `ip addr show`, `ip route`, `ping -c 3 1.1.1.1` (if a network is enabled); capture screenshot. `poweroff` when finished.
+
+
+## Network discovery — guest NIC present, network not configured (2026-10-08)
+
+The user supplied a screenshot of UTM Lite v8's live Alpine Linux terminal showing:
+
+```text
+localhost:~# ip addr show
+1: lo: <LOOPBACK> mtu 65536 qdisc noop state DOWN ...
+2: eth0: <BROADCAST,MULTICAST> mtu 1500 qdisc noop state DOWN ...
+    link/ether 62:1f:4a:e5:4b:e1 ...
+localhost:~# ip route
+localhost:~# ping -c 3 1.1.1.1
+PING 1.1.1.1 (1.1.1.1): 56 data bytes
+ping: sendto: Network unreachable
+```
+
+**DEVICE PASS (partial):** Alpine AArch64 kernel enumerates `eth0`, indicating a virtual NIC is detected. **NOT PASS:** network connectivity; interface is DOWN, with no IPv4 address or default route. This is compatible with an unconfigured Alpine live environment and not yet evidence of a broken QEMU network adapter.
+
+Next user test (not yet performed):
+
+```sh
+ip link set eth0 up
+udhcpc -i eth0 -n -q
+ip addr show eth0
+ip route
+ping -c 3 1.1.1.1
+```
+
+If DHCP cannot obtain a lease, inspect UTM VM's network toggle and NAT/shared-network mode, network-device attachment, and guest interface link status. Do not yet declare Internet/networking PASS. This checkpoint does not change build or firmware baseline.
