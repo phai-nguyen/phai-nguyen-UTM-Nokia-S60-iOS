@@ -89,6 +89,15 @@ changes = [
             return
         }
         do {
+            // Ensure Files > On My iPhone shows this app's document container, even
+            // before the first VM has been created. Never overwrite user documents.
+            try manager.createDirectory(at: docs, withIntermediateDirectories: true)
+            let readme = docs.appendingPathComponent("COPY-ISO-HERE.txt")
+            if !manager.fileExists(atPath: readme.path) {
+                try? "Chép file ISO vào cùng thư mục này; trở lại UTM, nhấn Làm mới.\\n".write(
+                    to: readme, atomically: true, encoding: .utf8
+                )
+            }
             let contents = try manager.contentsOfDirectory(
                 at: docs, includingPropertiesForKeys: [.isRegularFileKey], options: [.skipsHiddenFiles]
             )
