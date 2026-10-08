@@ -42,3 +42,25 @@ For simultaneous EKA2L1 and UTM installations, UTM needs its **own distinct App 
 ## Next needed information
 
 Find the provisioned **UTM-specific App ID** in ESign, distinct from EKA2L1's existing ID. A screenshot of this field (with unrelated sensitive certificate details hidden) is sufficient. If profile only has an exact EKA2L1 App ID, do not create UTM ESign-match IPA against it; use a separately provisioned App ID or continue testing v4 Documents workaround.
+
+## Bằng chứng mới từ video ký/cài thực tế (08/10/2026)
+
+Video cho thấy ESign hiển thị `Bundle: com.eka2l1.emulator` trong bước ký một IPA EKA2L1, sau đó iOS cài đặt ứng dụng và EKA2L1 vừa mở đã chọn được `SYM.ROM` trong Files, hoàn thành cài đặt thiết bị và hiển thị các ứng dụng Symbian.
+
+**Điều này hạn chế kết luận cũ:** màn hình ESign *trước / trong* lúc ký không chứng minh được `CFBundleIdentifier` và `application-identifier` thực tế của IPA *sau ký* có giống như vậy không. Ngoài ra, video đã xác nhận chức năng chọn ROM dùng được ở một bản đã ký. Không được coi việc lệch App ID là **nguyên nhân chắc chắn duy nhất**, cũng không được sửa UTM thành Bundle ID của EKA2L1.
+
+### Những kỹ thuật đã xuất hiện trong các dự án EKA2L1
+
+1. [`-EKA2L1-iOS-fixed` / `RootViewController.mm`](https://github.com/phai-nguyen/-EKA2L1-iOS-fixed/blob/vi-localization-official/patches/RootViewController.mm): dùng `UIDocumentPickerViewController(initForOpeningContentTypes:asCopy:YES)`; xử lý `documentPicker:didPickDocumentsAtURLs:`; giữ quyền bằng `startAccessingSecurityScopedResource` trong thời gian `copyItemAtURL`, rồi nhập vào `Documents/imports`. Đây là **cơ chế nhận URL và nhập tệp riêng biệt với sửa Bundle ID**.
+2. [`build-ios-vietnamese.yml`](https://github.com/phai-nguyen/-EKA2L1-iOS-fixed/blob/vi-localization-official/.github/workflows/build-ios-vietnamese.yml): tạo hai bản IPA (gốc + ESign Match); A/B cũ ghi nhận ESign Match hoạt động trong lần thử đó.
+3. [Commit `e6df4cb`](https://github.com/phai-nguyen/-EKA2L1-iOS-fixed/commit/e6df4cb4db7b49b9fd4292b6ebc026b2f018aa05) gỡ một workaround chuyển SwiftUI `.fileImporter` sang UIKit vì không cần thiết cho **nhánh SwiftUI đó** sau khi giải quyết identity. Không được diễn giải thành UIKit picker chưa bao giờ có tác dụng ở các nhánh khác.
+4. [`EKA2L1-S60-Hybrid-Home`, commit `027e2b9`](https://github.com/phai-nguyen/EKA2L1-S60-Hybrid-Home/commit/027e2b98a5167a9f96c27600ddb6bb77a731ac68) chỉ ghi nhận ràng buộc ESign cũ; không có bản vá picker độc lập bổ sung.
+5. [`Eka2l1_bot_menu_simbiam`](https://github.com/phai-nguyen/Eka2l1_bot_menu_simbiam): các commit có từ khóa "picker" liên quan **bộ chọn bố cục tay cầm Manic**, không phải lỗi iOS Files/ROM.
+
+### Bài học áp dụng cho UTM
+
+- Giữ Lite v2 mở ứng dụng PASS; v3 sửa `UTType` đã device-FAIL; v4 nhập ISO từ app Documents chờ device-test.
+- Kỹ thuật thử nghiệm hợp lý tiếp theo nếu v4 bất tiện: **UIKit `UIDocumentPickerViewController(forOpeningContentTypes:[.item], asCopy:true)` + delegate + security-scoped copy vào Documents** chỉ cho màn hình chọn ISO Linux. Đây là một thí nghiệm *khác* với việc thay `.data` bằng `.item`.
+- Cần thêm log xác nhận callback `didPickDocumentsAtURLs`, kết quả copy vào Documents, lỗi nếu có. Khi đã nhận URL mới kiểm tra khởi chạy VM ARM.
+- Kiểm tra identifier/entitlements **trong IPA được ký xong**, không kết luận từ màn hình trước ký. Không dùng Bundle ID EKA2L1 để ký UTM; không cần tải chứng chỉ, mật khẩu hay UDID lên GitHub.
+- PR v5 chỉ là **công cụ đóng gói tùy chọn**, chưa phải bản fix đã được xác thực trên iPhone.
