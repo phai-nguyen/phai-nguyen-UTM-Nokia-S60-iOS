@@ -1,0 +1,73 @@
+name: UTM-SE-LITE-V2-DYLD-SAFE
+
+on:
+  push:
+    branches: [fix/lite-v2-dyld-safe]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  optimize:
+    name: Symbol strip with dyld dependencies preserved
+    runs-on: macos-26
+    timeout-minutes: 75
+    steps:
+      - name: Checkout Lite v2 scripts
+        uses: actions/checkout@v4
+
+      - name: Get known-good full IPA from build 37733615950
+        uses: actions/download-artifact@v4
+        with:
+          name: NokiaUTM-SE-v1-unsigned-IPA
+          repository: phai-nguyen/phai-nguyen-UTM-Nokia-S60-iOS
+          run-id: 37733615950
+          github-token: ${{ github.token }}
+          path: original
+
+      - name: Build Lite v2 with all dyld frameworks retained
+        shell: bash
+        run: |
+          mkdir -p out/diagnostics
+          bash scripts/build_dyld_safe_lite.sh \
+            original/NokiaUTM-SE-v1-unsigned.ipa \
+            "$PWD/out/NokiaUTM-SE-Lite-v2-dyld-safe-unsigned.ipa" \
+            "$PWD/out/diagnostics" \
+            2>&1 | tee out/diagnostics/build-log.txt
+
+      - name: Summarize original vs Lite v2
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          report=json.loads(Path("out/diagnostics/size-result.json").read_text())
+          print(report)
+          lines=["### Nokia UTM Lite v2 (strong-linked frameworks retained)",
+                 f"- Original: {report['source_bytes']/1048576:.2f} MiB",
+                 f"- New IPA: **{report['lite_bytes']/1048576:.2f} MiB**",
+                 f"- Reduction: {report['reduction_percent']}%",
+                 "- No framework deleted: strong dyld dependencies checked",
+                 "- IPA not signed; device test PENDING; NOT a Nokia firmware emulator"]
+          with open(os.environ["GITHUB_STEP_SUMMARY"],"a") as f:
+              f.write("\n".join(lines)+"\n")
+          PY
+
+      - name: Upload Lite v2 IPA
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: NokiaUTM-SE-Lite-v2-unsigned-IPA
+          path: out/*.ipa
+          if-no-files-found: error
+          compression-level: 0
+
+      - name: Upload verification logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: NokiaUTM-SE-Lite-v2-DYLD-LOGS
+          path: out/diagnostics/
+          if-no-files-found: warn
