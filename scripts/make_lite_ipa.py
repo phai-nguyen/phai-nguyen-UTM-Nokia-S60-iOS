@@ -71,12 +71,11 @@ def main():
                 # A clone preserves POSIX executable bits and symlinks, and avoids
                 # corrupting the original ZipFile's central-directory metadata.
                 clone = copy.copy(info)
-                with src.open(info, "r") as reader:
-                    if info.is_dir():
-                        dst.writestr(clone, b"")
-                    else:
-                        with dst.open(clone, "w", force_zip64=True) as writer:
-                            shutil.copyfileobj(reader, writer, 2 * 1024 * 1024)
+                if info.is_dir():
+                    dst.writestr(clone, b"")
+                else:
+                    with src.open(info, "r") as reader, dst.open(clone, "w", force_zip64=True) as writer:
+                        shutil.copyfileobj(reader, writer, 2 * 1024 * 1024)
                 members_kept += 1
     if set(drops) != set(DROP_TARGETS):
         target.unlink(missing_ok=True)
