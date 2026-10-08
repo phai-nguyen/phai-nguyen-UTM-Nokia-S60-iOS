@@ -15,6 +15,12 @@ STATUS='FAIL'
 STAGE='init'
 on_exit() {
     rc=$?
+    # Capture configure/Meson error details even if configure fails before ninja.
+    if test -d "$OUT/work/build"; then
+        cp -f "$OUT/work/build/config.log" "$DIAG/qemu-config.log" 2>/dev/null || true
+        cp -f "$OUT/work/build/config-host.mak" "$DIAG/config-host.mak" 2>/dev/null || true
+        cp -f "$OUT/work/build/meson-logs/meson-log.txt" "$DIAG/meson-log.txt" 2>/dev/null || true
+    fi
     {
         echo "STATUS=$STATUS"
         echo "EXIT_CODE=$rc"
