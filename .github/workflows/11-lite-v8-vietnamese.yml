@@ -1,0 +1,117 @@
+name: UTM-SE-LITE-V8-VIETNAMESE
+
+on:
+  push:
+    branches: [feat/vi-localization-lite-v8]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  localize-ipa:
+    name: Add Vietnamese to verified UTM Lite v7 IPA
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout Vietnamese translation and scripts
+        uses: actions/checkout@v4
+
+      - name: Checkout pinned UTM translation catalogue
+        uses: actions/checkout@v4
+        with:
+          repository: utmapp/UTM
+          ref: 7eadb056ae0f91d979059544d0ddcd2d5a40be92
+          path: upstream/UTM
+          sparse-checkout: |
+            Platform/zh-Hans.lproj
+          persist-credentials: false
+
+      - name: Fetch device-tested Lite v7 build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: NokiaUTM-SE-Lite-v7-BUNDLED-ISO-IPA
+          repository: phai-nguyen/phai-nguyen-UTM-Nokia-S60-iOS
+          run-id: 37769341815
+          github-token: ${{ github.token }}
+          path: source
+
+      - name: Compile-check localization script and verify input
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          mkdir -p out/diagnostics
+          python3 -m py_compile scripts/add_vi_localization.py
+          test -s source/NokiaUTM-SE-Lite-v7-BUNDLED-ISO-unsigned.ipa
+          test -s upstream/UTM/Platform/zh-Hans.lproj/Localizable.strings
+          sha256sum source/NokiaUTM-SE-Lite-v7-BUNDLED-ISO-unsigned.ipa |
+            tee out/diagnostics/source-v7-sha256.txt
+
+      - name: Add vi.lproj resources to Lite v7 without changing executable
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 scripts/add_vi_localization.py \
+            source/NokiaUTM-SE-Lite-v7-BUNDLED-ISO-unsigned.ipa \
+            out/NokiaUTM-SE-Lite-v8-TiengViet-unsigned.ipa \
+            localization upstream/UTM \
+            out/diagnostics/vietnamese-report.json \
+            2>&1 | tee out/diagnostics/vietnamese-console.log
+          grep -F '"status": "PASS"' out/diagnostics/vietnamese-report.json
+          test -s out/NokiaUTM-SE-Lite-v8-TiengViet-unsigned.ipa
+
+      - name: Verify ZIP, language keys, and source equivalence
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 - <<'PY'
+          import json, plistlib, zipfile
+          from pathlib import Path
+          p=Path('out/NokiaUTM-SE-Lite-v8-TiengViet-unsigned.ipa')
+          report=json.loads(Path('out/diagnostics/vietnamese-report.json').read_text())
+          assert report['status']=='PASS'
+          assert report['verified_catalogue_matches'] >= 335
+          assert len(report['qemu_frameworks_unchanged']) == 7
+          with zipfile.ZipFile(p) as z:
+              assert z.testzip() is None
+              prefix='Payload/UTM SE.app/'
+              for name in ['vi.lproj/Localizable.strings','vi.lproj/Localizable.stringsdict',
+                           'vi.lproj/InfoPlist.strings','Settings.bundle/vi.lproj/Root.strings']:
+                  assert prefix+name in z.namelist()
+              info=plistlib.loads(z.read(prefix+'Info.plist'))
+              assert info['CFBundleIdentifier']=='com.phai.nokias60.UTM-SE'
+              assert info['MinimumOSVersion']=='15.0'
+              assert 'vi' in info['CFBundleLocalizations']
+              table=z.read(prefix+'vi.lproj/Localizable.strings').decode('utf-8')
+              assert '"Settings" = "Cài đặt";' in table
+              assert '"Boot from ISO image" = "Khởi động từ tệp ISO";' in table
+              assert '"Failed to access drive image path." = "Không thể truy cập đường dẫn tệp ảnh đĩa.";' in table
+              assert 'NokiaUTMISOImports' not in z.namelist()
+              print('VI_LOCALE_QA=PASS')
+          PY
+          sha256sum out/NokiaUTM-SE-Lite-v8-TiengViet-unsigned.ipa |
+            tee out/diagnostics/v8-sha256.txt
+          echo '### UTM SE Lite v8 — Tiếng Việt' >> "$GITHUB_STEP_SUMMARY"
+          echo '- Source: **device ISO picker PASS** Lite v7; VM Save result not yet confirmed' >> "$GITHUB_STEP_SUMMARY"
+          echo '- Added Vietnamese vi.lproj and Settings.bundle Vietnamese' >> "$GITHUB_STEP_SUMMARY"
+          echo '- iOS 15.0+, no JIT, all 7 QEMU frameworks unchanged, UTM Bundle ID unchanged' >> "$GITHUB_STEP_SUMMARY"
+          echo '- Locale/ZIP/binary validations PASS; iPhone UI device test PENDING' >> "$GITHUB_STEP_SUMMARY"
+          echo '- No OMAP2420/N95 hardware modifications' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload localized unsigned IPA
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: NokiaUTM-SE-Lite-v8-TiengViet-IPA
+          path: out/NokiaUTM-SE-Lite-v8-TiengViet-unsigned.ipa
+          compression-level: 0
+          if-no-files-found: error
+
+      - name: Upload localization QA logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: NokiaUTM-SE-Lite-v8-TiengViet-LOGS
+          path: out/diagnostics/
+          if-no-files-found: warn
