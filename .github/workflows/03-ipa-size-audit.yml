@@ -1,0 +1,48 @@
+name: IPA-SIZE-AUDIT
+
+on:
+  push:
+    branches:
+      - diagnostic/size-audit-v1
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  audit:
+    name: Inspect UTM SE v1 IPA without building
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout size analysis script
+        uses: actions/checkout@v4
+
+      - name: Download exact v1 PASS artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: NokiaUTM-SE-v1-unsigned-IPA
+          repository: phai-nguyen/phai-nguyen-UTM-Nokia-S60-iOS
+          run-id: 37733615950
+          github-token: ${{ github.token }}
+          path: input
+
+      - name: Generate size report
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          mkdir -p out
+          test -f input/NokiaUTM-SE-v1-unsigned.ipa
+          python3 scripts/size_audit.py input/NokiaUTM-SE-v1-unsigned.ipa out \
+            | tee out/size-audit-console.log
+          cat out/size-report.md >> "$GITHUB_STEP_SUMMARY"
+          echo "Source: GitHub Actions #37733615950, unchanged original v1 IPA." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload size diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: NOKIA-UTM-V1-SIZE-AUDIT
+          path: out/
+          if-no-files-found: warn
