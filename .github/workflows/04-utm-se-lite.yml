@@ -1,0 +1,82 @@
+name: UTM-SE-LITE-IPA
+
+on:
+  push:
+    branches:
+      - build/utm-se-lite-v1
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  lite:
+    name: Build lite IPA from verified UTM SE v1 IPA (ARM-only)
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Checkout optimization scripts
+        uses: actions/checkout@v4
+
+      - name: Download verified UTM SE v1 IPA
+        uses: actions/download-artifact@v4
+        with:
+          name: NokiaUTM-SE-v1-unsigned-IPA
+          repository: phai-nguyen/phai-nguyen-UTM-Nokia-S60-iOS
+          run-id: 37733615950
+          github-token: ${{ github.token }}
+          path: original
+
+      - name: Make Nokia UTM SE Lite IPA (unsigned)
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          mkdir -p out
+          python3 scripts/make_lite_ipa.py \
+            "original/NokiaUTM-SE-v1-unsigned.ipa" \
+            "out/NokiaUTM-SE-Lite-v1-unsigned.ipa" \
+            "out/lite-manifest.json" | tee out/lite-console.log
+          python3 scripts/size_audit.py \
+            "out/NokiaUTM-SE-Lite-v1-unsigned.ipa" \
+            "out/lite-audit" > out/lite-size-detail.log
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          data=json.loads(Path("out/lite-manifest.json").read_text())
+          text=(
+            "### Nokia UTM SE Lite v1 — build PASS (not device-tested)\n\n"
+            f"- IPA original: {data['source_bytes']/1048576:.2f} MiB\n"
+            f"- IPA Lite: **{data['lite_bytes']/1048576:.2f} MiB**\n"
+            f"- Reduction: **{data['reduction_percent']:.2f}%**\n"
+            f"- SHA256 Lite: \`{data['lite_sha256']}\`\n"
+            "- Guest CPU engine kept: **QEMU AArch64**\n"
+            "- Guest CPU engines removed: x86/x64, PPC/PPC64, RISC-V, M68K\n"
+            "- Nokia ROM support: **not yet implemented**\n"
+            "- Validation: ZIP archive integrity only; test launch on iPhone with ESign\n"
+          )
+          with open(__import__('os').environ["GITHUB_STEP_SUMMARY"],"a") as f:
+              f.write(text)
+          print(text)
+          PY
+
+      - name: Upload Lite IPA
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: NokiaUTM-SE-Lite-v1-IPA
+          path: out/NokiaUTM-SE-Lite-v1-unsigned.ipa
+          compression-level: 0
+          if-no-files-found: error
+
+      - name: Upload size reports and logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: NokiaUTM-SE-Lite-v1-LOGS
+          path: |
+            out/lite-manifest.json
+            out/lite-console.log
+            out/lite-size-detail.log
+            out/lite-audit/
+          if-no-files-found: warn
