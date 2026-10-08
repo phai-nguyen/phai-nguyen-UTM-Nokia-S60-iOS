@@ -1,0 +1,60 @@
+name: BOOTSTRAP-CHECK
+
+on:
+  push:
+    branches: [main, bootstrap/utm-se-v1]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-upstream:
+    name: UTM upstream + iOS 15 + iOS-SE source audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Nokia project
+        uses: actions/checkout@v4
+
+      - name: Checkout pinned UTM
+        uses: actions/checkout@v4
+        with:
+          repository: utmapp/UTM
+          ref: 7eadb056ae0f91d979059544d0ddcd2d5a40be92
+          path: upstream/UTM
+          submodules: false
+          persist-credentials: false
+
+      - name: Validate expected sources
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          mkdir -p diagnostics
+          {
+            echo "STATUS=CHECKING"
+            echo "project=${GITHUB_REPOSITORY}"
+            echo "UTM_EXPECTED=7eadb056ae0f91d979059544d0ddcd2d5a40be92"
+            cd upstream/UTM
+            echo "UTM_ACTUAL=$(git rev-parse HEAD)"
+            test "$(git rev-parse HEAD)" = "7eadb056ae0f91d979059544d0ddcd2d5a40be92"
+            test -f "UTM.xcodeproj/xcshareddata/xcschemes/iOS-SE.xcscheme"
+            test -f "scripts/build_utm.sh"
+            test -f "scripts/package.sh"
+            test -f "patches/sources"
+            test -f "Documentation/iOSDevelopment.md"
+            grep -Eq '^IOS_SDKMINVER="15\.0"' scripts/build_dependencies.sh
+            grep -q 'ipa-se' scripts/package.sh
+            grep -q 'ios-tci-arm64' Documentation/iOSDevelopment.md
+            echo "STATUS=PASS"
+          } 2>&1 | tee "$GITHUB_WORKSPACE/diagnostics/BOOTSTRAP-CHECK.log"
+          echo "### BOOTSTRAP-CHECK — PASS" >> "$GITHUB_STEP_SUMMARY"
+          echo "Mốc UTM: \`7eadb056ae0f91d979059544d0ddcd2d5a40be92\`; iOS 15 dependency và iOS-SE source OK. Chưa có IPA." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload diagnostic log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: BOOTSTRAP-CHECK-LOG
+          path: diagnostics/
+          if-no-files-found: warn

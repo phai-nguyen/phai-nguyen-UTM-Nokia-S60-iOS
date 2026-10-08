@@ -1,0 +1,82 @@
+name: UTM-SE-IPA
+
+on:
+  workflow_dispatch:
+    inputs:
+      sysroot_url:
+        description: "HTTPS URL to exact-match sysroot.tgz (contains sysroot-ios-tci-arm64)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build unsigned UTM SE IPA (not Nokia boot)
+    runs-on: macos-15
+    timeout-minutes: 180
+    steps:
+      - name: Checkout project
+        uses: actions/checkout@v4
+
+      - name: Checkout pinned upstream UTM
+        uses: actions/checkout@v4
+        with:
+          repository: utmapp/UTM
+          ref: 7eadb056ae0f91d979059544d0ddcd2d5a40be92
+          path: upstream/UTM
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Install matching prebuilt sysroot
+        shell: bash
+        env:
+          SYSROOT_URL: ${{ inputs.sysroot_url }}
+        run: |
+          set -Eeuo pipefail
+          [[ "$SYSROOT_URL" == https://* ]] || { echo "Only HTTPS URLs are allowed"; exit 1; }
+          echo "Downloading user-provided UTM sysroot archive"
+          curl --fail --location --retry 3 --connect-timeout 20 \
+            --output sysroot.tgz "$SYSROOT_URL"
+          tar -tzf sysroot.tgz | grep -q 'sysroot-ios-tci-arm64'
+          tar -xzf sysroot.tgz -C upstream/UTM
+          test -d upstream/UTM/sysroot-ios-tci-arm64
+
+      - name: Build and package iOS SE unsigned
+        shell: bash
+        run: bash scripts/build_utm_se.sh
+
+      - name: Summary
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p out/diagnostics
+          {
+            echo "### UTM-SE-IPA"
+            echo "- UTM commit: 7eadb056ae0f91d979059544d0ddcd2d5a40be92"
+            echo "- Build mode: iOS-SE / ARM64 / TCI / no JIT"
+            echo "- Nokia machine: **not yet implemented**"
+            if test -f out/NokiaUTM-SE-v1-unsigned.ipa; then
+              echo "- Status: **IPA READY (unsigned; requires ESign)**"
+            else
+              echo "- Status: **NO IPA** (check build log)"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+          xcodebuild -version > out/diagnostics/xcode-version.txt || true
+
+      - name: Upload IPA
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: NOKIA-UTM-SE-v1-IPA
+          path: out/*.ipa
+          if-no-files-found: ignore
+
+      - name: Upload build logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: NOKIA-UTM-SE-v1-LOG
+          path: out/diagnostics/
+          if-no-files-found: warn
