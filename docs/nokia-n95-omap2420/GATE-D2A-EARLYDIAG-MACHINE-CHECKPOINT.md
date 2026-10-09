@@ -45,3 +45,11 @@ GATE_D2A_STATUS=PASS
 ## Kế hoạch kế tiếp sau D2a PASS
 
 Gate D2b: UART OMAP2420 thật tại `0x4806A000` (UART1; UART2/3 `0x4806C000` / `0x4806E000`) theo map QEMU 9.1; port thiết bị với thanh ghi, reset, TX/RX/IRQ, sau đó log qua UART. D2c: OMAP2 INTC/clock/timer; D2d: qtest/stability; D2e: iOS TCI IPA **riêng**, không ghi đè v8/v9. Không gọi machine `nokia-n95` trước khi có bo mạch phù hợp.
+
+## CI lượt đầu và bản vá QOM (2026-10-09)
+
+- Run [#37903814895](https://github.com/phai-nguyen/phai-nguyen-UTM-Nokia-S60-iOS/actions/runs/37903814895): **FAIL tại runtime**, **không phải compiler**. QEMU pinned v10.0.12 biên dịch được machine `omap2420-earlydiag`; `-M help` nhận diện machine; `-cpu help` thấy ARM1136; ELF có entry `0x80010000` và lệnh `REV`.
+- Error chính xác: `include/hw/qdev-core.h:77:DEVICE: Object ... is not an instance of type device`, QEMU abort exit 134.
+- Nguyên nhân gần: `memory_region_init_ram(&s->sram, OBJECT(machine), ...)` truyền `MachineState` không phải `DeviceState` vào owner RAM. QEMU cần owner `DeviceState` hoặc `NULL`; kiểu này được đối chiếu với các board QEMU hiện có dùng `NULL`.
+- Commit [`d4e3e9b5`](https://github.com/phai-nguyen/phai-nguyen-UTM-Nokia-S60-iOS/commit/d4e3e9b53a3eb7980ed7370d97b58264e95e9474) sửa thành `memory_region_init_ram(&s->sram, NULL, ...)`. Chỉ ảnh hưởng mã machine nghiên cứu được inject vào source QEMU tạm trong CI, **không thay đổi app v8/v9**.
+- Run thử lại [#37904307368](https://github.com/phai-nguyen/phai-nguyen-UTM-Nokia-S60-iOS/actions/runs/37904307368) — kết quả chưa xác minh tại thời điểm ghi. Chỉ công bố D2a PASS khi log có đủ SRAM/SDRAM/REV/ELF và negative boundary PASS.
