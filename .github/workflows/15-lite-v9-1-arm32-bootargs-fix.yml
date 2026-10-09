@@ -248,7 +248,8 @@ jobs:
             echo '- Pinned UTM source and iOS TCI/no-JIT ARM32 framework'
             echo '- Linux ARM32 QEMU virt (Cortex-A15), 256 MiB RAM preset'
             echo '- ESign unsigned IPA; Vietnamese localization from device-tested v8'
-            echo '- Kernel -append parser fixed for ARM32 virt only; existing v9 VM configs supported'\n            echo '- Alpine Linux ARM32 guest/device test: **PENDING**'
+            echo '- Kernel -append parser fixed for ARM32 virt only; existing v9 VM configs supported'
+            echo '- Alpine Linux ARM32 guest/device test: **PENDING**'
             echo '- Nokia N95 hardware: NOT IMPLEMENTED'
           } >> "$GITHUB_STEP_SUMMARY"
 
