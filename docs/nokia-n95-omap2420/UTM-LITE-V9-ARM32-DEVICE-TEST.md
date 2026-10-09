@@ -62,3 +62,13 @@ Không chọn file ZIP trực tiếp để boot, không dùng file ISO Alpine AR
 - [Commit `00d21195`](https://github.com/phai-nguyen/phai-nguyen-UTM-Nokia-S60-iOS/commit/00d21195d913e61e4dc59c077968f0a4466dc208): CI chỉ chạy commit thử nghiệm mới nhất thay vì chờ hết lượt build cũ (`cancel-in-progress: true`).
 - [Run v9 đã sửa `#37890960534`](https://github.com/phai-nguyen/phai-nguyen-UTM-Nokia-S60-iOS/actions/runs/37890960534): **chưa có kết luận build PASS/FAIL** khi ghi checkpoint; cần kiểm tra đủ các bước để lấy artifact IPA hoặc lỗi mới.
 - **V8 baseline:** giữ nguyên `feat/vi-localization-lite-v8`, hash IPA đã device-PASS; **chưa cần người dùng cài v9 hoặc test Nokia**. Chỉ thông báo `DEVICE PASS` sau khi iPhone thật chạy Linux ARMv7 (`uname -m` = `armv7l`).
+
+## Gate B — iOS ARM32 v9 IPA BUILD PASS (2026-10-09 ICT)
+
+- **Run [#37890960534](https://github.com/phai-nguyen/phai-nguyen-UTM-Nokia-S60-iOS/actions/runs/37890960534) COMPLETED / SUCCESS** trên branch `feat/arm32-linux-lite-v9`, commit `00d21195d913e61e4dc59c077968f0a4466dc208`.
+- **IPA unsigned:** [`NokiaUTM-SE-Lite-v9-ARM32-Viet-IPA` artifact #11598800821](https://github.com/phai-nguyen/phai-nguyen-UTM-Nokia-S60-iOS/actions/runs/37890960534/artifacts/11598800821). Dung lượng GitHub artifact 138361490 bytes. Tải file ZIP từ artifact, giải nén để lấy `NokiaUTM-SE-Lite-v9-ARM32-Viet-unsigned.ipa`, ký ESign rồi mới cài iPhone.
+- **Chẩn đoán:** [`NokiaUTM-SE-Lite-v9-ARM32-BUILD-LOGS` artifact #11599120066](https://github.com/phai-nguyen/phai-nguyen-UTM-Nokia-S60-iOS/actions/runs/37890960534/artifacts/11599120066).
+- Log bảo đảm: `ARM32_FRAMEWORK_STAGED_BEFORE_IPA=PASS`; `ARM32_EMBEDDED_SHA256_MATCH=PASS`; `STRIP=PASS ENGINE_COUNT=8`; `ARM32_8_ENGINES_IN_IPA=PASS`; `ARM32_IPA_CONTENT_CHECK=PASS`; `STATUS=PASS`.
+- v9 có bundle ID riêng `com.phai.nokias60.arm32.UTM-SE`, minimum iOS 15.0 và nội dung tiếng Việt sao chép từ bản v8 device-PASS.
+- **Không đồng nghĩa DEVICE PASS:** log xác định `IPHONE_DEVICE_BOOT=NOT_YET_TESTED`. Thiết bị iPhone phải chạy kernel và initramfs Alpine ARMv7 thử nghiệm, quan sát `ALPINE_ARCH=armv7l` rồi tắt/khởi động lại để xác nhận.
+- Không có Nokia N95/OMAP2420/Symbian firmware. v8 baseline vẫn nguyên, không thay đổi.
