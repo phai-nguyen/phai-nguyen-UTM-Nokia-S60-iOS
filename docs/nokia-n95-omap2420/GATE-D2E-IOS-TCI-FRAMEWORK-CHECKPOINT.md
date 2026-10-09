@@ -42,3 +42,13 @@
 4. Để boot Nokia N95/Symbian cần thêm clock tree/reset, GPMC/NAND, OMAP peripheral map và board-specific thiết bị ngoài phần chẩn đoán; chưa có ở D2e.
 
 **Scope/Safety:** chỉ nghiên cứu giả lập để tương thích máy cổ; không phải malware, credential, persistence, xâm nhập, khai thác hoặc tấn công mạng. Không đưa ROM Nokia thương mại vào GitHub.
+
+## Lượt CI #37920944620 FAIL ở bước kiểm tra máy, bản vá #37922317635 (09/10/2026)
+
+- [Run #37920944620](https://github.com/phai-nguyen/phai-nguyen-UTM-Nokia-S60-iOS/actions/runs/37920944620): **COMPLETED / FAILURE** ở **`LAST_STAGE=verify-embedded-machine-registrations`**, không phải lỗi trình biên dịch ARM1136.
+- Log có bốn object `hw_arm_omap2420_diag_d2a.c.o` … `d2d.c.o`, `[2876/2878] Linking target libqemu-arm-softmmu.dylib`, đóng framework `fixup.sh` đã chạy; tool `strings "$FW/qemu-arm-softmmu" | grep 'omap2420-'` trả status 1.
+- Đây có thể là **false negative của cách tìm chuỗi ở Mach-O**, hoặc bốn tên máy đã bị loại khỏi final framework: **chưa thể kết luận** khi không có báo cáo byte-scan. Cảnh báo linker khác: `ui_spice-display-metal.m.o` khai báo SDK iOS 26.5 mới hơn deployment target 15.0; cảnh báo không dừng link, nhưng cần theo dõi trước khi chạy trên iPhone iOS 18.7.
+- [Log artifact #11612740448](https://github.com/phai-nguyen/phai-nguyen-UTM-Nokia-S60-iOS/actions/runs/37920944620/artifacts/11612740448) gồm 30 tệp chẩn đoán.
+- Patch commit `ea067e98d9220b3f4c3c2a23f3e84e2e6a761b1d` thay gate `strings` bằng **Python đọc bytes trực tiếp** trên *cả raw dylib và framework đã stage*, bắt buộc đủ bốn chuỗi máy kết thúc NUL; ghi `machine-registration-byte-audit.txt` kể cả khi fail. Không bỏ bất kỳ ràng buộc PASS nào.
+- [Rerun (push) #37922317635](https://github.com/phai-nguyen/phai-nguyen-UTM-Nokia-S60-iOS/actions/runs/37922317635) đã được tạo. **Đang chạy/chờ; chưa chứng minh framework PASS và chưa có IPA** tại thời điểm ghi.
+- Giữ nguyên bảy engine cũ, v8/v9, tất cả firmware. **Chưa có kiểm thử iPhone hoặc Nokia N95/Symbian boot.**
