@@ -56,3 +56,17 @@ Không có mô hình bo mạch Nokia N95 đầy đủ, Symbian OS/S60/EKA2 start
 - Kiểm tra bổ sung tìm thấy script overlay locale v10 chưa gán `CFBundleDisplayName` nhưng workflow final-IPA bắt buộc tên riêng `UTM OMAP Diag v10`. [Commit `2b92b418cc11168664a0718a25237eccdaaba902`](https://github.com/phai-nguyen/phai-nguyen-UTM-Nokia-S60-iOS/commit/2b92b418cc11168664a0718a25237eccdaaba902) gán và hậu kiểm tên hiển thị đúng trong `Info.plist`; không sửa resource Việt hóa gốc v8, executable hay framework.
 - **Run mới nhất:** [#37931130662](https://github.com/phai-nguyen/phai-nguyen-UTM-Nokia-S60-iOS/actions/runs/37931130662), từ commit cuối; cần xác minh hoàn tất, artifacts IPA + ELF + logs, bundle ID, 8 engines, 4 QOM machine names. Run trung gian [#37931117994](https://github.com/phai-nguyen/phai-nguyen-UTM-Nokia-S60-iOS/actions/runs/37931117994) chứa **chỉ sửa log** nhưng chưa sửa display name, nên không dùng làm mốc chính.
 - **Không ghi BUILD PASS hay DEVICE PASS trước khi run mới nhất hoàn tất và xác minh.** Chưa có bằng chứng chạy bare-metal ARM1136 trên iPhone; Nokia N95/Symbian chưa được giả lập.
+
+## KẾT QUẢ CHÍNH THỨC V10 (cập nhật sau handoff, 2026-10-09)
+
+**GitHub Actions [#37931130662](https://github.com/phai-nguyen/phai-nguyen-UTM-Nokia-S60-iOS/actions/runs/37931130662): COMPLETED / SUCCESS**, HEAD build `2b92b418cc11168664a0718a25237eccdaaba902`. Mọi bước compile, archive, inject iOS ARM32 framework, copy vi resources, kiểm 8 engines/QOM, xuất artifact đều SUCCESS.
+
+- **[Unsigned IPA artifact #11616518733](https://github.com/phai-nguyen/phai-nguyen-UTM-Nokia-S60-iOS/actions/runs/37931130662/artifacts/11616518733)** — `NokiaUTM-SE-Lite-v10-OMAP2420-Diagnostic-unsigned.ipa`, SHA256 từ Actions **`2a91ed2024b3281a7252c8b77ecc59f506204c2d5bf12e668c5d038a91019c36`**; size artifact 138368756 bytes.
+- **[ELF ARM1136 artifact #11616453769](https://github.com/phai-nguyen/phai-nguyen-UTM-Nokia-S60-iOS/actions/runs/37931130662/artifacts/11616453769)** — `arm1136_d2d_prcm_gpt1.elf`, baremetal chẩn đoán GPTimer1 IRQ37.
+- **[Logs artifact #11616453775](https://github.com/phai-nguyen/phai-nguyen-UTM-Nokia-S60-iOS/actions/runs/37931130662/artifacts/11616453775)**.
+- Test: `V10_OMAP2420_DIAGNOSTIC_WIZARD=PASS`, `ARM32_EMBEDDED_SHA256_MATCH=PASS`, `V10_OMAP2420_FOUR_QOM_MACHINES_IN_FINAL_IPA=PASS`, `ARM32_8_ENGINES_IN_IPA=PASS`, `ARM32_IPA_CONTENT_CHECK=PASS`, `STATUS=PASS`; **`IPHONE_DEVICE_BOOT=NOT_YET_TESTED`**.
+- **Bundle:** `com.phai.nokias60.omapdiag.UTM-SE`, display `UTM OMAP Diag v10`, min iOS 15.0. v8/v9 bundle và các app đã DEVICE PASS không bị sửa.
+- **Chưa chứng minh chạy ARM1136 UART/GPT1 trên iPhone**, không có Nokia N95/Symbian boot; chỉ BUILD/PACKAGE PASS.
+- **HANDOFF mới nhất phải đọc thay cho handoff v8 cũ:** [`docs/handoff/NEWCHAT-UTM-N95-OMAP2420-V10-2026-10-09.md`](../handoff/NEWCHAT-UTM-N95-OMAP2420-V10-2026-10-09.md).
+
+Bước tiếp theo **DEVICE TEST v10**: dùng ESign ký IPA, tải ELF riêng từ artifact, chọn Linux/Boot from Kernel + `OMAP2420 Diagnostic – ARM1136`, 128MiB, serial-only, không initramfs, không load firmware Nokia; gửi log/video để kiểm marker D2D.
