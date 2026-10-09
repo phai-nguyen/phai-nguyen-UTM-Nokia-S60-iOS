@@ -1,0 +1,89 @@
+name: NOKIA-N95-GATE-D2A-OMAP2420-EARLY-DIAG
+
+# Research-only guest baremetal RAM/CPU proof; no Nokia firmware, no IPA.
+# ARM1136 + SRAM/SDRAM mapping copied from QEMU v9.1 OMAP2 references.
+on:
+  push:
+    branches:
+      - research/n95-omap2420-gate-d2a
+    paths:
+      - .github/workflows/17-n95-omap2420-gate-d2a.yml
+      - scripts/test_omap2420_earlydiag_gate_d2a.sh
+      - tests/omap2420/**
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: n95-omap2420-gate-d2a
+  cancel-in-progress: true
+
+jobs:
+  d2a:
+    name: Gate D2a - pinned QEMU10 ARM1136 with OMAP2 SRAM/SDRAM map
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    steps:
+      - name: Checkout isolated OMAP2420 Gate D2a research branch
+        uses: actions/checkout@v4
+
+      - name: Install QEMU source build and ARMv6 assembler dependencies
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            build-essential git curl wget xz-utils python3 python3-venv python3-pip \
+            ninja-build pkg-config libglib2.0-dev libpixman-1-dev zlib1g-dev libfdt-dev \
+            gcc-arm-linux-gnueabi binutils-arm-linux-gnueabi
+          python3 -m venv /tmp/qemu-gate-d2a-venv
+          /tmp/qemu-gate-d2a-venv/bin/pip install 'meson>=1.6,<2'
+          /tmp/qemu-gate-d2a-venv/bin/meson --version
+
+      - name: Build QEMU 10 experimental OMAP2420 earlydiag and run ARM1136 memory test
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          export PATH="/tmp/qemu-gate-d2a-venv/bin:$PATH"
+          bash scripts/test_omap2420_earlydiag_gate_d2a.sh
+          grep -Fx 'GATE_D2A_STATUS=PASS' out/omap2420-d2a/diagnostics/BUILD-STATUS.txt
+          grep -Fx 'D2A_ARM1136_SRAM_SDRAM_ELF_EXECUTION=PASS' out/omap2420-d2a/diagnostics/runtime-status.txt
+          grep -Fx 'D2A_RAM_BOUNDARY_GUARD=PASS' out/omap2420-d2a/diagnostics/negative-test.txt
+
+      - name: Publish precise diagnostic status
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p out/omap2420-d2a/diagnostics
+          {
+            echo '## Nokia N95 research Gate D2a: EARLY DIAGNOSTIC only'
+            echo '- CPU: ARM1136 ARMv6'
+            echo '- OMAP2420-style SRAM at 0x40200000; SDRAM at 0x80000000'
+            echo '- The machine is an experimental minimal memory map: NO UART/INTC/clock/GPMC'
+            echo '- Diagnostic output: ARM semihosting, NOT a Nokia/OMAP UART'
+            echo '- No Nokia firmware, no Symbian boot, no iOS IPA, v8/v9 unchanged'
+            echo '### Gate status'
+            echo '~~~'
+            cat out/omap2420-d2a/diagnostics/BUILD-STATUS.txt 2>/dev/null || echo 'BUILD_NOT_STARTED'
+            cat out/omap2420-d2a/diagnostics/runtime-status.txt 2>/dev/null || true
+            echo '~~~'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload debug and compilation logs even on errors
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: N95-OMAP2420-GATE-D2A-DIAGNOSTIC-LOGS
+          path: out/omap2420-d2a/diagnostics/
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Upload ARMv6 ELF source-test payload (not Nokia ROM)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: OMAP2420-D2A-ARM1136-MEMORY-TEST-ELF
+          path: out/omap2420-d2a/payload/
+          if-no-files-found: warn
+          retention-days: 14
