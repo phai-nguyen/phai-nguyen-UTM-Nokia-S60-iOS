@@ -61,6 +61,8 @@ def main(v8, v10, out, report):
             member = ROOT + f"Frameworks/qemu-{cpu}-softmmu.framework/qemu-{cpu}-softmmu"
             if member not in build.namelist():
                 raise RuntimeError(f"Missing QEMU engine in v10: {cpu}")
+        # Independent diagnostic app label; Info.plist only is changed by this overlay.
+        base10["CFBundleDisplayName"] = "UTM OMAP Diag v10"
         existing = base10.get("CFBundleLocalizations", [])
         if not isinstance(existing, list):
             raise RuntimeError("Bad CFBundleLocalizations")
@@ -93,6 +95,7 @@ def main(v8, v10, out, report):
             if final.read(locale) != source.read(locale):
                 raise RuntimeError(f"Vietnamese locale differs from device-PASS v8: {locale}")
         assert plistlib.loads(final.read(INFO))["CFBundleIdentifier"] == "com.phai.nokias60.omapdiag.UTM-SE"
+        assert plistlib.loads(final.read(INFO))["CFBundleDisplayName"] == "UTM OMAP Diag v10"
     result = {
         "status": "PASS", "v8_baseline_sha256": sha256(v8),
         "v10_unlocalized_sha256": sha256(v10), "v10_arm32_vi_sha256": sha256(out),
