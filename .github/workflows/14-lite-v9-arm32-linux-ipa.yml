@@ -139,11 +139,15 @@ jobs:
             git diff -- Platform/Shared/VMWizardHardwareView.swift
           ) > out/diagnostics/arm32-v9/swift-wizard-diff.txt
 
-      - name: Build independently installable ARM32 v9 app
+      - name: Build ARM32 v9 app and inject framework before IPA staging
         shell: bash
+        env:
+          ARM32_EXTRA_FRAMEWORK: upstream/UTM/sysroot-ios-tci-arm64/Frameworks/qemu-arm-softmmu.framework
         run: |
           set -Eeuo pipefail
           bash scripts/build_utm_se.sh
+          test -s out/diagnostics/arm32-v9-injected-framework.sha256
+          echo 'ARM32_ARCHIVE_IPA_STAGING=PASS'
 
       - name: Verify ARM32 engine actually embedded in Xcode archive
         shell: bash
@@ -162,10 +166,21 @@ jobs:
           grep -Fx '15.0' out/diagnostics/arm32-v9/minimum-ios.txt
           otool -L "$APP/Frameworks/qemu-arm-softmmu.framework/qemu-arm-softmmu" \
             > out/diagnostics/arm32-v9/arm32-archive-otool.txt
+          test -s out/diagnostics/arm32-v9-injected-framework.sha256
+          python3 - <<'PY'
+          import hashlib
+          from pathlib import Path
+          app = Path("out/UTMSE.xcarchive/Products/Applications/UTM SE.app/Frameworks/qemu-arm-softmmu.framework/qemu-arm-softmmu")
+          src = Path("upstream/UTM/sysroot-ios-tci-arm64/Frameworks/qemu-arm-softmmu.framework/qemu-arm-softmmu")
+          assert hashlib.sha256(app.read_bytes()).digest() == hashlib.sha256(src.read_bytes()).digest()
+          print("ARM32_EMBEDDED_SHA256_MATCH=PASS")
+          PY
           echo 'ARM32_ARCHIVE_ENGINE=PASS'
 
       - name: Package separate Lite v9 IPA while preserving all engines
         shell: bash
+        env:
+          REQUIRE_ARM32: "1"
         run: |
           set -Eeuo pipefail
           bash scripts/build_dyld_safe_lite.sh \
