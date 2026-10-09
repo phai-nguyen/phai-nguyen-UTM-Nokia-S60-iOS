@@ -20,7 +20,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  omap2420-d2c:
+  omap2420-d2d:
     name: Gate D2d - ARM1136 PRCM wakeup clock and GPTimer1 IRQ37 + regressions
     runs-on: ubuntu-24.04
     timeout-minutes: 55
@@ -41,7 +41,7 @@ jobs:
           /tmp/qemu-gate-d2d-venv/bin/pip install 'meson>=1.6,<2'
           /tmp/qemu-gate-d2d-venv/bin/meson --version
 
-      - name: Build patched pinned QEMU10 and run UART1 serial plus regression gates
+      - name: Build QEMU10 PRCM and GPT1 IRQ37 and verify D2a-D2c regressions
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -61,11 +61,11 @@ jobs:
           mkdir -p out/omap2420-d2d/diagnostics
           {
             echo '## Gate D2d OMAP2420 PRCM / GPTimer1 IRQ37 — pinned QEMU v10.0.12'
-            echo '- Machine omap2420-uartdiag; ARM1136 CPU, SRAM/SDRAM, UART1 MMIO 0x4806a000'
+            echo '- Machine omap2420-timerdiag; ARM1136, SRAM/SDRAM, UART1 0x4806a000, GPT1 0x48028000, PRCM 0x48008000'
             echo '- QEMU virtual-clock GPTimer1 overflow at 0x48028000, PRCM gate at 0x48008000'
             echo '- IRQ37 via OMAP2 INTC subset to actual ARM1136 CPU IRQ exception'
             echo '- Real ARM1136 GPT1 IRQ exception handler through low vector 0x18'
-            echo '- Not fake UART using semihosting: SYS_EXIT uses semihosting only for process termination'
+            echo '- Markers through real UART1 serial-MMIO; semihosting only exits guest'
             echo '- D2a/D2b/D2c CPU/memory/UART TX/RX/IRQ72 regressions; invalid RAM rejected'
             echo '- PRCM/GPTimer1 diagnostic subset only; full SoC clock/timer priority/FIQ not implemented'
             echo '- Not Nokia N95 machine or Symbian boot; Linux-host CI only, no IPA'
@@ -82,7 +82,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: N95-OMAP2420-GATE-D2C-UART1-DIAGNOSTIC-LOGS
+          name: N95-OMAP2420-GATE-D2D-PRCM-GPT1-DIAGNOSTIC-LOGS
           path: out/omap2420-d2d/diagnostics/
           if-no-files-found: warn
           retention-days: 14
