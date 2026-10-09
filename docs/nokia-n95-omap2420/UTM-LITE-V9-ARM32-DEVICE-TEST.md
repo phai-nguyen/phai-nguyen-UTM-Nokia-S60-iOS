@@ -51,3 +51,14 @@ Không chọn file ZIP trực tiếp để boot, không dùng file ISO Alpine AR
 - [Source/checkpoint ARM32](ARM32-TCI-DIAGNOSTIC-CHECKPOINT.md)
 - [GitHub Actions của repo](https://github.com/phai-nguyen/phai-nguyen-UTM-Nokia-S60-iOS/actions)
 - [Nokia N95 QEMU source inventory](QEMU-SOURCE-INVENTORY.md)
+
+## CI lần 1 và bản sửa — 2026-10-09
+
+- [Run `#37888483886`](https://github.com/phai-nguyen/phai-nguyen-UTM-Nokia-S60-iOS/actions/runs/37888483886): **FAIL** ở bước `Verify ARM32 engine actually embedded in Xcode archive` sau khi `Build independently installable ARM32 v9 app` hoàn tất **SUCCESS**. Xcode archive đã xây dựng được app với bundle ID `com.phai.nokias60.arm32.UTM-SE`, nhưng kiểm tra ngay sau đó thoát 1 trước khi đọc bundle ID (phép thử đầu tiên: `test -s .../Frameworks/qemu-arm-softmmu.framework/qemu-arm-softmmu`). Vì vậy `IPA v9` **chưa xuất**.
+- Nguyên nhân gần: Xcode `iOS-SE` không tự chép `qemu-arm-softmmu.framework` trong sysroot vào `.app/Frameworks` dù framework ARM32 đã được tải và xác minh đúng kiến trúc host ARM64 trước build. Không phải lỗi Swift compile.
+- [Commit `1cd545f0`](https://github.com/phai-nguyen/phai-nguyen-UTM-Nokia-S60-iOS/commit/1cd545f08281c91b028c65c66ddfceaa5d2aeeff): opt-in `ARM32_EXTRA_FRAMEWORK` vào `scripts/build_utm_se.sh`, copy `qemu-arm-softmmu.framework` sau khi archive xong nhưng **trước khi đóng gói IPA gốc**, so sánh bytes bằng `cmp`, xuất SHA256 và `otool`. Không ảnh hưởng quy trình v8.
+- [Commit `b6575c81`](https://github.com/phai-nguyen/phai-nguyen-UTM-Nokia-S60-iOS/commit/b6575c81796edabb985de4c6cb1e274fdfaa1604): `REQUIRE_ARM32=1` buộc script strip/xác minh **8** frameworks v9, giữ mặc định 7 cho nhánh khác.
+- [Commit `b64194c2`](https://github.com/phai-nguyen/phai-nguyen-UTM-Nokia-S60-iOS/commit/b64194c226bf87ddf7da11910ff462cb4fd62f04): workflow truyền opt-in, xác minh SHA256 của ARM32 trong archive, kiểm tra IPA chứa đủ 8 engine và giao diện Việt hóa.
+- [Commit `00d21195`](https://github.com/phai-nguyen/phai-nguyen-UTM-Nokia-S60-iOS/commit/00d21195d913e61e4dc59c077968f0a4466dc208): CI chỉ chạy commit thử nghiệm mới nhất thay vì chờ hết lượt build cũ (`cancel-in-progress: true`).
+- [Run v9 đã sửa `#37890960534`](https://github.com/phai-nguyen/phai-nguyen-UTM-Nokia-S60-iOS/actions/runs/37890960534): **chưa có kết luận build PASS/FAIL** khi ghi checkpoint; cần kiểm tra đủ các bước để lấy artifact IPA hoặc lỗi mới.
+- **V8 baseline:** giữ nguyên `feat/vi-localization-lite-v8`, hash IPA đã device-PASS; **chưa cần người dùng cài v9 hoặc test Nokia**. Chỉ thông báo `DEVICE PASS` sau khi iPhone thật chạy Linux ARMv7 (`uname -m` = `armv7l`).
