@@ -50,3 +50,31 @@ Nếu D2b PASS: bổ sung test RX/loopback và mô hình OMAP2 INTC + UART IRQ (
 ## Scope / Safety
 
 Đây là nghiên cứu giả lập phần cứng phục vụ tương thích hệ điều hành cổ, không liên quan xâm nhập, malware, credential, persistence, khai thác hoặc tấn công. Không tải/phân phối ROM Nokia có bản quyền và không trộn repo EKA2L1.
+
+## Gate D2b — COMPLETED / SUCCESS, xác minh 2026-10-09 (ICT)
+
+**GitHub Actions [#37906747406](https://github.com/phai-nguyen/phai-nguyen-UTM-Nokia-S60-iOS/actions/runs/37906747406): COMPLETED / SUCCESS.**
+
+- [Log artifact #11605330239 — N95-OMAP2420-GATE-D2B-UART1-DIAGNOSTIC-LOGS](https://github.com/phai-nguyen/phai-nguyen-UTM-Nokia-S60-iOS/actions/runs/37906747406/artifacts/11605330239)
+- [Diagnostic ELF artifact #11604867816 — OMAP2420-D2B-ARM1136-UART1-TEST-ELF](https://github.com/phai-nguyen/phai-nguyen-UTM-Nokia-S60-iOS/actions/runs/37906747406/artifacts/11604867816)
+- QEMU fork `v10.0.12-utm` build máy `omap2420-uartdiag` và CPU `arm1136` thành công.
+- ELF ARMv6 dùng `STRB` tại thanh ghi TX của UART1 QEMU `serial-mm` thực ở `0x4806A000`; output qua `-serial stdio`. Semihosting chỉ phục vụ `SYS_EXIT`, không in kết quả.
+- Marker từ log, không suy đoán:
+  ```text
+  D2B_PINNED_QEMU10_SOURCE_PATCH=PASS
+  D2B_MACHINE_ARM1136_SERIAL_MM_BUILD=PASS
+  D2B_UART1_16550_TX_MMIO=PASS
+  D2B_UART1_VENDOR_REGS=PASS
+  D2B_SRAM_SDRAM_REGRESSION=PASS
+  D2B_ARM1136_ARMV6_REV=PASS
+  D2B_UART1_RX=NOT_TESTED
+  D2B_OMAP2_INTC_IRQ=NOT_IMPLEMENTED
+  QEMU_EXIT_CODE=0
+  D2A_BASELINE_REGRESSION=PASS
+  D2B_RAM_GUARD=PASS
+  GATE_D2B_STATUS=PASS
+  ```
+- **Kết luận có giới hạn:** Gate D2b TX + thanh ghi vendor/reset PASS **trên Ubuntu GitHub**, không chứng minh UART RX/IRQ, hệ clock/timer, đầy đủ OMAP2420/N95, boot Symbian hay chạy Gate D2b trên iPhone.
+- Bản UTM SE Lite v8/v9 đã DEVICE PASS vẫn được giữ nguyên và không phải cài lại IPA.
+
+**Bước kế:** Gate D2c ưu tiên mô hình OMAP2 interrupt controller/IRQ UART, thử RX loopback và interrupt pending/mask/ack; sau đó mới clock/timer/PRCM theo nguồn QEMU 9.1, và chỉ tích hợp iOS khi phần cứng giả lập vượt các bài kiểm thử host.
