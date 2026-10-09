@@ -52,3 +52,13 @@
 - Patch commit `ea067e98d9220b3f4c3c2a23f3e84e2e6a761b1d` thay gate `strings` bằng **Python đọc bytes trực tiếp** trên *cả raw dylib và framework đã stage*, bắt buộc đủ bốn chuỗi máy kết thúc NUL; ghi `machine-registration-byte-audit.txt` kể cả khi fail. Không bỏ bất kỳ ràng buộc PASS nào.
 - [Rerun (push) #37922317635](https://github.com/phai-nguyen/phai-nguyen-UTM-Nokia-S60-iOS/actions/runs/37922317635) đã được tạo. **Đang chạy/chờ; chưa chứng minh framework PASS và chưa có IPA** tại thời điểm ghi.
 - Giữ nguyên bảy engine cũ, v8/v9, tất cả firmware. **Chưa có kiểm thử iPhone hoặc Nokia N95/Symbian boot.**
+
+## Phân tích chính xác lần 2 và sửa QOM audit (2026-10-09)
+
+- Run [#37922317635](https://github.com/phai-nguyen/phai-nguyen-UTM-Nokia-S60-iOS/actions/runs/37922317635) **COMPLETED / FAILURE**. Artifact [#11612479172](https://github.com/phai-nguyen/phai-nguyen-UTM-Nokia-S60-iOS/actions/runs/37922317635/artifacts/11612479172).
+- Cả bốn object `hw_arm_omap2420_diag_d2{a,b,c,d}.c.o` đã biên dịch; `libqemu-arm-softmmu.dylib` và `qemu-system-arm-unsigned` đều liên kết; `fixup.sh` tạo framework iOS. Bản byte-scan thứ nhất lại tìm `omap2420-earlydiag\0` và tương tự, báo thiếu trên cả raw Mach-O và framework.
+- **Đã xác minh từ chính source QEMU `v10.0.12-utm`:** `include/hw/boards.h` khai báo `#define TYPE_MACHINE_SUFFIX "-machine"`, `#define MACHINE_TYPE_NAME(machinename) (machinename TYPE_MACHINE_SUFFIX)`; macro `DEFINE_MACHINE` dùng `MACHINE_TYPE_NAME(namestr)` làm QOM TypeInfo. Do đó binary chứa chuỗi type name `omap2420-earlydiag-machine\0` (và ba máy khác), chứ không cần có tên CLI nguyên văn + NUL.
+- **Root cause của false negative:** kiểm bytes `name+b"\0"` thay vì `name+b"-machine\0"`. Không có căn cứ coi linker đã xóa machines chỉ từ kết quả này; phép thử cũ không đúng định dạng QOM ngay từ đầu.
+- [Commit `d61bb4eed4b43ab9d7a3de55f4f6167021e5e24a`](https://github.com/phai-nguyen/phai-nguyen-UTM-Nokia-S60-iOS/commit/d61bb4eed4b43ab9d7a3de55f4f6167021e5e24a) sửa byte-scan trên **hai tệp** raw Mach-O + packaged framework để tìm chính xác chuỗi `-machine\0`; vẫn FAIL nếu thiếu bất kỳ chuỗi nào và vẫn buộc kiểm SHA 7 engine, dependency closure, kiến trúc arm64 host/iOS15+.
+- [Run #37924268847](https://github.com/phai-nguyen/phai-nguyen-UTM-Nokia-S60-iOS/actions/runs/37924268847) được trigger; **chưa nhận kết quả PASS/FAIL tại lúc ghi note**. Chỉ cập nhật kết luận sau khi xem log hoàn tất.
+- Chưa có IPA nghiên cứu v10, chưa có thử nghiệm OMAP2420 trên iPhone và chưa boot N95/Symbian; v8/v9 ổn định vẫn nguyên.
