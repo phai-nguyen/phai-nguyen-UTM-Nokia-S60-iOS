@@ -61,3 +61,14 @@ Nghiên cứu giả lập/compatibility; không liên quan xâm nhập, malware 
 - Nguyên nhân từ log: `pkgconf --libs` và CFLAGS trả absolute prefix cũ `/Users/runner/actions/runner-2/_work/UTM/UTM/sysroot-iOS-TCI-arm64`, không tồn tại ở path hiện tại `/Users/runner/work/phai-nguyen-UTM-Nokia-S60-iOS/.../upstream/UTM/sysroot-ios-tci-arm64`.
 - [Commit sửa `55cf6099429044abf573fad4e9f7295fc3def1be`](https://github.com/phai-nguyen/phai-nguyen-UTM-Nokia-S60-iOS/commit/55cf6099429044abf573fad4e9f7295fc3def1be): đọc prefix trong `glib-2.0.pc`, rebase **chỉ** các file `.pc` trên bản sysroot tạm của CI, lưu `pkgconfig-rebase.txt` và preflight. Không sửa ELF/Mach-O, firmware hay bảy engine.
 - [ARM32 run #37856923827](https://github.com/phai-nguyen/phai-nguyen-UTM-Nokia-S60-iOS/actions/runs/37856923827) **mới khởi chạy**, chưa kết luận PASS/FAIL tại thời điểm ghi checkpoint.
+
+## ARM32 CI GATE A — PASS (2026-10-09 ICT)
+
+- **GitHub Actions run [#37856923827](https://github.com/phai-nguyen/phai-nguyen-UTM-Nokia-S60-iOS/actions/runs/37856923827): COMPLETED / SUCCESS**, commit `55cf6099429044abf573fad4e9f7295fc3def1be`; UTM pinned `7eadb056ae0f91d979059544d0ddcd2d5a40be92`, QEMU source `v10.0.12-utm`.
+- **Diagnostic terminal log:** `ARM32_FRAMEWORK_DIAG=PASS; NO IPA BUILT; NO IPHONE DEVICE TEST` and `ARM32_DIAGNOSTIC_STATUS=PASS EXIT_CODE=0 STAGE=complete`. Step `Compile qemu-arm-softmmu and inspect experimental framework` PASS, ARM32 framework artifact uploaded PASS.
+- Baseline integrity gate: `SEVEN_FRAMEWORKS=UNCHANGED` (SHA256 comparison of **7** pre-existing engines in temporary UTM sysroot), no v8 IPA change.
+- **Artifacts:**
+  - [`QEMU-ARM32-TCI-RESEARCH-FRAMEWORK` #11584179493](https://github.com/phai-nguyen/phai-nguyen-UTM-Nokia-S60-iOS/actions/runs/37856923827/artifacts/11584179493) — ARM32 guest CPU framework cross-compiled for ARM64 iOS host; research only, not installable IPA.
+  - [`Nokia-N95-ARM32-TCI-DIAGNOSTIC-LOGS` #11584344017](https://github.com/phai-nguyen/phai-nguyen-UTM-Nokia-S60-iOS/actions/runs/37856923827/artifacts/11584344017) — toolchain, configure, compile, linkage, source provenance, SHA256 before/after, BUILD-STATUS; available while GitHub artifact retention permits.
+- **Gate A result:** ARM32 iOS TCI **compile/link/framework packaging PASS**, not ARM32 Linux execution, not N95 OMAP2420, not Symbian boot. The output is a framework candidate for a future controlled test.
+- **Next Gate A2:** create separate ARM32 guest Linux serial boot/smoke harness with legal test kernel/initramfs; verify real guest instruction execution and basic RAM/UART on a supported `-M` board. Do not change the tested v8 baseline or bundle Nokia ROMs.
