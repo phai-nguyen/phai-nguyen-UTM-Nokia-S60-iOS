@@ -292,14 +292,41 @@ print('LINKED_FRAMEWORK_CLOSURE=PASS')
 PY
 
 STAGE='verify-embedded-machine-registrations'
-# Inspect the *packaged framework*, not just the QEMU build tree. 'strings'
-# is diagnostic: it confirms presence of machine names, not runtime iPhone boot.
-strings "$FW/qemu-arm-softmmu" | grep 'omap2420-' \
-    > "$DIAG/embedded-diagnostic-machine-strings.txt"
-for machine in omap2420-earlydiag omap2420-uartdiag \
-               omap2420-intcdiag omap2420-timerdiag; do
-    grep -Fx "$machine" "$DIAG/embedded-diagnostic-machine-strings.txt"
-done
+# On macOS, /usr/bin/strings is Mach-O section-aware: its default scan can
+# omit plain C literals from sections other than __TEXT,__cstring. Using its
+# stdout as a pass/fail oracle produced a false-negative AFTER linking four
+# ARM1136 source modules. Inspect exact NUL-terminated bytes directly in
+# both the raw Mach-O dylib and the final staged iOS framework instead.
+# This verifies linked literal presence; it does NOT prove runtime boot.
+python3 - "$DYLIB" "$FW/qemu-arm-softmmu" \
+           "$DIAG/machine-registration-byte-audit.txt" <<'PY'
+from pathlib import Path
+import sys
+raw, staged, output = (Path(x) for x in sys.argv[1:])
+names = (
+    b"omap2420-earlydiag",
+    b"omap2420-uartdiag",
+    b"omap2420-intcdiag",
+    b"omap2420-timerdiag",
+)
+results = []
+missing = []
+for label, p in (("raw_macho", raw), ("staged_framework", staged)):
+    data = p.read_bytes()
+    results.append(f"{label}: bytes={len(data)}")
+    for name in names:
+        # Requiring trailing NUL rules out an accidental substring match.
+        offset = data.find(name + b"\0")
+        outcome = "PASS" if offset >= 0 else "MISSING"
+        results.append(f"{label}: {name.decode()}={outcome} offset={offset}")
+        if offset < 0:
+            missing.append((label, name.decode()))
+output.write_text("\n".join(results) + "\n", encoding="utf-8")
+print("\n".join(results), flush=True)
+if missing:
+    sys.exit("Missing linked machine names in framework: " + repr(missing))
+print("D2E_FOUR_OMAP_MACHINE_BYTE_SCAN=PASS", flush=True)
+PY
 echo 'D2E_FOUR_OMAP_DIAGNOSTIC_MACHINE_NAMES_IN_IOS_FRAMEWORK=PASS' \
     > "$DIAG/machine-symbol-gate.txt"
 
