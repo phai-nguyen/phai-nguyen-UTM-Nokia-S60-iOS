@@ -43,7 +43,17 @@ change(enum_file,
        "    case integratorcp",
        "ARM32_TARGET_ENUM")
 change(enum_file,
+       '    static var `default`: QEMUTarget_arm {\n'
+       '        .virt\n'
+       '    }\n\n'
+       '    var prettyValue: String {\n'
+       '        switch self {\n'
        '        case .integratorcp: return "ARM Integrator/CP (ARM926EJ-S) (integratorcp)"',
+       '    static var `default`: QEMUTarget_arm {\n'
+       '        .virt\n'
+       '    }\n\n'
+       '    var prettyValue: String {\n'
+       '        switch self {\n'
        '        case .omap2420_earlydiag: return "OMAP2420 CPU/SRAM diagnostic (no Nokia firmware)"\n'
        '        case .omap2420_uartdiag: return "OMAP2420 UART1 diagnostic (no Nokia firmware)"\n'
        '        case .omap2420_intcdiag: return "OMAP2420 UART+INTC diagnostic (no Nokia firmware)"\n'
