@@ -19,7 +19,7 @@ permissions:
 
 concurrency:
   group: utm-n95-arm32-ipa-v9
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 env:
   UTM_SHA: 7eadb056ae0f91d979059544d0ddcd2d5a40be92
