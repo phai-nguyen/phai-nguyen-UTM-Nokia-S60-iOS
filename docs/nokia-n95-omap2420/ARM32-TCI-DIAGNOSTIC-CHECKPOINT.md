@@ -72,3 +72,12 @@ Nghiên cứu giả lập/compatibility; không liên quan xâm nhập, malware 
   - [`Nokia-N95-ARM32-TCI-DIAGNOSTIC-LOGS` #11584344017](https://github.com/phai-nguyen/phai-nguyen-UTM-Nokia-S60-iOS/actions/runs/37856923827/artifacts/11584344017) — toolchain, configure, compile, linkage, source provenance, SHA256 before/after, BUILD-STATUS; available while GitHub artifact retention permits.
 - **Gate A result:** ARM32 iOS TCI **compile/link/framework packaging PASS**, not ARM32 Linux execution, not N95 OMAP2420, not Symbian boot. The output is a framework candidate for a future controlled test.
 - **Next Gate A2:** create separate ARM32 guest Linux serial boot/smoke harness with legal test kernel/initramfs; verify real guest instruction execution and basic RAM/UART on a supported `-M` board. Do not change the tested v8 baseline or bundle Nokia ROMs.
+
+## Gate A2 — Alpine ARMv7 QEMU virt Linux host smoke PASS (09/10/2026)
+
+- Script [`scripts/prepare_alpine_arm32_virt_kit.sh`](../../scripts/prepare_alpine_arm32_virt_kit.sh) lấy Linux chính thức Alpine 3.24.2 ARMv7 (minirootfs, SHA256 verify; kernel `netboot/vmlinuz-lts`), tạo `initramfs-armv7.cpio.gz` và `/init` serial diagnostic.
+- Workflow [`13-alpine-arm32-virt-smoke.yml`](../../.github/workflows/13-alpine-arm32-virt-smoke.yml) trên Ubuntu gọi `qemu-system-arm -M virt -cpu cortex-a15 -m 256M -nographic -kernel vmlinuz-lts -initrd initramfs-armv7.cpio.gz -append "console=ttyAMA0,115200 rdinit=/init ..."`.
+- **GitHub Actions [#37887218792](https://github.com/phai-nguyen/phai-nguyen-UTM-Nokia-S60-iOS/actions/runs/37887218792): SUCCESS**. Log nhận `ALPINE_ARM32_BOOT=PASS`, `ALPINE_ARCH=armv7l`, `ALPINE_RELEASE=3.24.2`, `ALPINE_ARM32_SMOKE_PASS`, `HOST_ARM32_GUEST_SMOKE=PASS`, kết thúc với exit code 0.
+- [Boot kit artifact #11596817132](https://github.com/phai-nguyen/phai-nguyen-UTM-Nokia-S60-iOS/actions/runs/37887218792/artifacts/11596817132), gồm kernel, initramfs, SHA256SUMS, README tiếng Việt.
+- [Boot log artifact #11596494815](https://github.com/phai-nguyen/phai-nguyen-UTM-Nokia-S60-iOS/actions/runs/37887218792/artifacts/11596494815).
+- **RANH GIỚI QUAN TRỌNG:** Gate A2 dùng QEMU ARM32 chạy trên **Linux host**, KHÔNG kiểm thử iOS TCI framework trực tiếp. Gate A chỉ xác nhận framework ARM32 iOS compile/link PASS; chưa tích hợp `qemu-arm-softmmu.framework` vào iOS IPA, chưa chạy ARM32 guest trên iPhone, chưa có OMAP2420 hay firmware N95. Giữ v8 baseline bất biến.
