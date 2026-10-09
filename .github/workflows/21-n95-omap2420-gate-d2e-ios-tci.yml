@@ -1,0 +1,124 @@
+name: UTM-N95-GATE-D2E-OMAP2420-IOS-TCI-FRAMEWORK
+
+# Research-only ARM32 QEMU compile. NEVER builds or overwrites device-tested Lite v8 IPA.
+on:
+  push:
+    branches:
+      - research/n95-omap2420-gate-d2e-ios-tci
+    paths:
+      - .github/workflows/21-n95-omap2420-gate-d2e-ios-tci.yml
+      - scripts/diagnose_omap2420_d2e_ios_tci.sh
+      - tests/omap2420/**
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: n95-omap2420-d2e-ios-tci
+  cancel-in-progress: true
+
+jobs:
+  arm32:
+    name: Cross compile ARM1136 OMAP2 D2a-D2d QEMU iOS TCI framework (no IPA)
+    runs-on: macos-26
+    timeout-minutes: 120
+    steps:
+      - name: Checkout research scripts
+        uses: actions/checkout@v4
+
+      - name: Checkout exact pinned UTM revision
+        uses: actions/checkout@v4
+        with:
+          repository: utmapp/UTM
+          ref: 7eadb056ae0f91d979059544d0ddcd2d5a40be92
+          path: upstream/UTM
+          persist-credentials: false
+
+      - name: Download matching UTM iOS TCI sysroot (original 7 engines)
+        uses: actions/download-artifact@v4
+        with:
+          name: Sysroot-ios-tci-arm64
+          repository: utmapp/UTM
+          run-id: 36090554968
+          github-token: ${{ github.token }}
+          path: upstream-artifact
+
+      - name: Install dependencies for ARM32-only QEMU compile
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          brew install meson ninja pkgconf bison gettext glib
+          echo "$(brew --prefix bison)/bin" >> "$GITHUB_PATH"
+          echo "$(brew --prefix gettext)/bin" >> "$GITHUB_PATH"
+          echo "QEMU_BUILD_TOOLCHAIN=READY"
+
+      - name: Restore pinned sysroot without rebuilding its dependencies
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          mkdir -p out/omap2420-d2e-ios-tci/diagnostics
+          test -s upstream-artifact/sysroot.tgz
+          tar -tzf upstream-artifact/sysroot.tgz > out/omap2420-d2e-ios-tci/diagnostics/sysroot-file-list.txt
+          grep -F 'sysroot-ios-tci-arm64/' out/omap2420-d2e-ios-tci/diagnostics/sysroot-file-list.txt
+          tar -xzf upstream-artifact/sysroot.tgz -C upstream/UTM
+          test -d upstream/UTM/sysroot-ios-tci-arm64/Frameworks
+          shasum -a 256 upstream-artifact/sysroot.tgz > out/omap2420-d2e-ios-tci/diagnostics/sysroot-archive.sha256
+          echo 'PINNED_SYSROOT=RESTORED'
+
+      - name: Compile QEMU ARM1136 OMAP diagnostic machines and inspect iOS TCI framework
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          bash scripts/diagnose_omap2420_d2e_ios_tci.sh \
+            2>&1 | tee out/omap2420-d2e-ios-tci/diagnostics/complete-console.log
+          grep -Fx 'STATUS=PASS' out/omap2420-d2e-ios-tci/diagnostics/BUILD-STATUS.txt
+          grep -F 'SEVEN_FRAMEWORKS=UNCHANGED' out/omap2420-d2e-ios-tci/diagnostics/baseline-integrity.txt
+          grep -Fx 'D2E_FOUR_OMAP_DIAGNOSTIC_MACHINE_NAMES_IN_IOS_FRAMEWORK=PASS' out/omap2420-d2e-ios-tci/diagnostics/machine-symbol-gate.txt
+
+      - name: GitHub Actions PASS/FAIL summary
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p out/omap2420-d2e-ios-tci/diagnostics
+          STATUS_FILE=out/omap2420-d2e-ios-tci/diagnostics/BUILD-STATUS.txt
+          if test -s "$STATUS_FILE"; then
+            cat "$STATUS_FILE"
+          else
+            echo 'STATUS=FAIL_OR_NOT_RUN' | tee "$STATUS_FILE"
+            echo 'LAST_STAGE=before_arm32_diagnostic' >> "$STATUS_FILE"
+          fi
+          {
+            echo '### Gate D2e — iOS ARM64-host / ARM32-guest TCI framework diagnostic'
+            echo '- Isolated research branch: research/n95-omap2420-gate-d2e-ios-tci'
+            echo '- Pinned UTM: 7eadb056ae0f91d979059544d0ddcd2d5a40be92'
+            echo '- Pinned QEMU source: v10.0.12-utm'
+            echo '- Original 7 frameworks: read-only integrity audit, SHA256 before/after'
+            echo '- iOS ARM64 host + ARM32/ARM1136 guest, TCI/no-JIT; iOS 15 minimum'
+            echo '- No IPA, no ESign app modification, no Nokia firmware'
+            echo '- Machines: omap2420-earlydiag, omap2420-uartdiag, omap2420-intcdiag, omap2420-timerdiag (CPU/SoC subset ONLY)'
+            echo '- iPhone test: **NOT RUN**; Nokia N95 machine, firmware and Symbian: **NOT IMPLEMENTED**'
+            echo '- Result:'
+            echo '~~~'
+            cat "$STATUS_FILE"
+            echo '~~~'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload diagnostic logs even on failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Nokia-N95-OMAP2420-D2E-IOS-TCI-DIAGNOSTIC-LOGS
+          path: out/omap2420-d2e-ios-tci/diagnostics/
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Upload Gate D2e experimental ARM32 OMAP diagnostic framework (not IPA)
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: QEMU-OMAP2420-D2E-IOS-TCI-ARM32-RESEARCH-FRAMEWORK
+          path: out/omap2420-d2e-ios-tci/framework/
+          if-no-files-found: error
+          retention-days: 14
