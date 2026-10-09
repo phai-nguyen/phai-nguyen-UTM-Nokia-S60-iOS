@@ -72,3 +72,24 @@ Không chọn file ZIP trực tiếp để boot, không dùng file ISO Alpine AR
 - v9 có bundle ID riêng `com.phai.nokias60.arm32.UTM-SE`, minimum iOS 15.0 và nội dung tiếng Việt sao chép từ bản v8 device-PASS.
 - **Không đồng nghĩa DEVICE PASS:** log xác định `IPHONE_DEVICE_BOOT=NOT_YET_TESTED`. Thiết bị iPhone phải chạy kernel và initramfs Alpine ARMv7 thử nghiệm, quan sát `ALPINE_ARCH=armv7l` rồi tắt/khởi động lại để xác nhận.
 - Không có Nokia N95/OMAP2420/Symbian firmware. v8 baseline vẫn nguyên, không thay đổi.
+
+## Gate C1 — ARM32 Linux kernel+initramfs DEVICE BOOT PASS (2026-10-09 ICT)
+
+**Bằng chứng do người kiểm thử cung cấp:** ảnh chụp màn hình terminal từ UTM SE Lite **v9** trên iPhone, sau khi áp dụng workaround cho `-append`: giữ toàn bộ chuỗi `"console=ttyAMA0,115200 rdinit=/init loglevel=5"` trong một đối số. Ảnh ghi rõ:
+
+```text
+=== Alpine Linux ARM32 QEMU virt ===
+ALPINE_ARM32_BOOT=PASS
+ALPINE_ARCH=armv7l
+ALPINE_RELEASE=3.24.2
+ALPINE_ARM32_SMOKE_PASS
+Goi lenh: uname -m ; cat /etc/alpine-release ; poweroff -f
+/bin/sh: can't access tty; job control turned off
+~ #
+```
+
+- **Gate C1 PASS:** iPhone đã thực thi Linux ARMv7 thật trong `qemu-arm-softmmu.framework` TCI/no-JIT và vào shell BusyBox/Alpine. Kết quả vượt mốc build-only, chưa phải Nokia/Symbian emulation.
+- Các cảnh báo `Spectre v2`, `/cpus/cpu@0 missing clock-frequency`, `/bin/sh: can't access tty; job control turned off` xuất hiện nhưng không cản boot hay shell.
+- **Gate C2 pending:** người kiểm thử cần gõ `uname -m` (`armv7l`), `cat /etc/alpine-release` (`3.24.2`), `poweroff -f`, và khởi động lại lần nữa. Không gán DEVICE STABILITY PASS trước khi nhận kết quả.
+- **Root cause v9 đã xác nhận bằng test thực tế:** khi dùng dấu ngoặc kép để giữ kernel command line thành một `-append` argv, Linux boot thành công. Bản v9.1 sửa parser được build riêng để loại bỏ bước workaround; chưa phải bản được người dùng thử trong ảnh này.
+- Giữ nguyên baseline v8, firmware Nokia N95 và OMAP2420 vẫn `NOT_IMPLEMENTED`. Tập trung bước tiếp theo vào iPhone ARM32 shutdown/restart và sau đó khám phá đường hỗ trợ ARM1136 / OMAP2420 ở nhánh nghiên cứu riêng.
