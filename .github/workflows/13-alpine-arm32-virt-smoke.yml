@@ -1,0 +1,81 @@
+name: NOKIA-N95-ALPINE-ARM32-VIRT-SMOKE
+
+# Independent Linux host smoke test + downloadable ARMv7 boot kit.
+# This does NOT modify/build the iPhone UTM Lite v8 IPA or OMAP2420.
+on:
+  push:
+    branches:
+      - research/n95-omap2420-arm32
+    paths:
+      - scripts/prepare_alpine_arm32_virt_kit.sh
+      - .github/workflows/13-alpine-arm32-virt-smoke.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: n95-arm32-alpine-smoke
+  cancel-in-progress: false
+
+jobs:
+  alpine-armv7-virt:
+    name: Alpine 3.24.2 armv7 QEMU virt Linux guest serial smoke (NOT iPhone)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout separate research branch
+        uses: actions/checkout@v4
+
+      - name: Install QEMU ARM32 emulator and rootfs utilities
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends qemu-system-arm cpio file
+          qemu-system-arm --version
+
+      - name: Download official Alpine ARMv7, generate initramfs and boot QEMU virt
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          bash scripts/prepare_alpine_arm32_virt_kit.sh
+          grep -Fx STATUS=PASS out/alpine-arm32-virt/diagnostics/BUILD-STATUS.txt
+          grep -Fx HOST_ARM32_GUEST_SMOKE=PASS out/alpine-arm32-virt/diagnostics/host-smoke-status.txt
+
+      - name: Add test summary
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p out/alpine-arm32-virt/diagnostics
+          {
+            echo '### Alpine Linux 3.24.2 ARMv7 / QEMU virt'
+            echo 'Separate Ubuntu host test, not iPhone; no Nokia N95 hardware or Symbian boot.'
+            echo 'UTM SE Lite v8 remains unchanged.'
+            echo '### Status'
+            echo '```'
+            cat out/alpine-arm32-virt/diagnostics/BUILD-STATUS.txt 2>/dev/null || echo STATUS=NOT_RUN
+            echo '```'
+            echo '### Host smoke status'
+            echo '```'
+            cat out/alpine-arm32-virt/diagnostics/host-smoke-status.txt 2>/dev/null || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload ARM32 Alpine kernel and initramfs to download
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Alpine-3.24.2-ARM32-QEMU-VIRT-BOOT-KIT
+          path: out/alpine-arm32-virt/kit/
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Upload QEMU ARM32 boot logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Alpine-3.24.2-ARM32-VIRT-SMOKE-LOGS
+          path: out/alpine-arm32-virt/diagnostics/
+          if-no-files-found: warn
+          retention-days: 14
