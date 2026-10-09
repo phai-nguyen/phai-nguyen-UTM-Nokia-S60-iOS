@@ -315,8 +315,13 @@ for label, p in (("raw_macho", raw), ("staged_framework", staged)):
     data = p.read_bytes()
     results.append(f"{label}: bytes={len(data)}")
     for name in names:
-        # Requiring trailing NUL rules out an accidental substring match.
-        offset = data.find(name + b"\0")
+        # QEMU DEFINE_MACHINE(name, ...) uses MACHINE_TYPE_NAME(name):
+        #   (name TYPE_MACHINE_SUFFIX) with TYPE_MACHINE_SUFFIX="-machine"
+        # in utmapp/qemu v10.0.12-utm include/hw/boards.h.
+        # The old probe mistakenly required NUL directly after the CLI name;
+        # the actual Mach-O class type string is name+"-machine"+NUL.
+        # Demand the registered QOM name, not a loose substring.
+        offset = data.find(name + b"-machine\0")
         outcome = "PASS" if offset >= 0 else "MISSING"
         results.append(f"{label}: {name.decode()}={outcome} offset={offset}")
         if offset < 0:
