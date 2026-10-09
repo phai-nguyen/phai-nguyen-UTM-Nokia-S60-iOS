@@ -1,0 +1,89 @@
+name: NOKIA-N95-GATE-D1-ARM1136-KZM-QEMU10
+
+# ARM1136 CPU/ARMv6 instruction+UART smoke on pinned QEMU Linux host.
+# KZM is i.MX31 reference only; this does not implement Nokia N95 OMAP2420.
+on:
+  push:
+    branches:
+      - research/n95-arm1136-gate-d1
+    paths:
+      - .github/workflows/16-n95-arm1136-gate-d1.yml
+      - scripts/test_arm1136_qemu10_kzm_gate_d1.sh
+      - tests/arm1136/**
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: n95-arm1136-gate-d1
+  cancel-in-progress: true
+
+jobs:
+  gate-d1:
+    name: Native pinned QEMU 10, bare-metal ARM1136 ARMv6 and i.MX31 UART
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    steps:
+      - name: Checkout independent ARM1136 diagnostic branch
+        uses: actions/checkout@v4
+
+      - name: Install native build dependencies and ARMv6 cross assembler
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            build-essential git curl wget xz-utils python3 python3-venv python3-pip \
+            ninja-build pkg-config libglib2.0-dev libpixman-1-dev zlib1g-dev libfdt-dev \
+            gcc-arm-linux-gnueabi binutils-arm-linux-gnueabi
+          python3 -m venv /tmp/qemu-gate-d1-venv
+          /tmp/qemu-gate-d1-venv/bin/pip install 'meson>=1.6,<2'
+          /tmp/qemu-gate-d1-venv/bin/meson --version
+
+      - name: Build original pinned UTM QEMU v10 and run ARM1136 UART smoke
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          export PATH="/tmp/qemu-gate-d1-venv/bin:$PATH"
+          bash scripts/test_arm1136_qemu10_kzm_gate_d1.sh
+          grep -Fx 'ARM1136_GATE_D1_STATUS=PASS' out/arm1136-gate-d1/diagnostics/BUILD-STATUS.txt
+          grep -Fx 'HOST_ARM1136_KZM_ARMV6_EXECUTION=PASS' out/arm1136-gate-d1/diagnostics/guest-runtime.txt
+
+      - name: Summarize ARM1136 diagnostic precisely
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p out/arm1136-gate-d1/diagnostics
+          {
+            echo '## Gate D1 — Nokia N95 research / ARM1136 CPU instruction smoke'
+            echo '- QEMU from utmapp/qemu v10.0.12-utm, independent Linux-host-only build'
+            echo '- ARM1136 ARMv6 baremetal ELF in QEMU KZM machine (Freescale i.MX31)'
+            echo '- Output through original KZM i.MX31 UART MMIO at 0x43f90040'
+            echo '- The KZM machine is **not** OMAP2420 or Nokia N95'
+            echo '- ARM1136 emulator execution on iPhone: **NOT TESTED**'
+            echo '- iOS v8/v9 build / source / installed app: **UNMODIFIED**'
+            echo '### Runtime/build status'
+            echo '~~~'
+            cat out/arm1136-gate-d1/diagnostics/BUILD-STATUS.txt 2>/dev/null || echo 'STATUS=NOT_STARTED'
+            cat out/arm1136-gate-d1/diagnostics/guest-runtime.txt 2>/dev/null || true
+            echo '~~~'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload ARM1136 proof logs regardless of status
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Nokia-N95-ARM1136-GATE-D1-QEMU10-LOGS
+          path: out/arm1136-gate-d1/diagnostics/
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Upload ARMv6 ELF diagnostic if created
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ARM1136-KZM-BAREMETAL-UART-TEST-ELF
+          path: out/arm1136-gate-d1/payload/
+          if-no-files-found: warn
+          retention-days: 14
