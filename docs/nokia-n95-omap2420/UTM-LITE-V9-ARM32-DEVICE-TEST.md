@@ -93,3 +93,15 @@ Goi lenh: uname -m ; cat /etc/alpine-release ; poweroff -f
 - **Gate C2 pending:** người kiểm thử cần gõ `uname -m` (`armv7l`), `cat /etc/alpine-release` (`3.24.2`), `poweroff -f`, và khởi động lại lần nữa. Không gán DEVICE STABILITY PASS trước khi nhận kết quả.
 - **Root cause v9 đã xác nhận bằng test thực tế:** khi dùng dấu ngoặc kép để giữ kernel command line thành một `-append` argv, Linux boot thành công. Bản v9.1 sửa parser được build riêng để loại bỏ bước workaround; chưa phải bản được người dùng thử trong ảnh này.
 - Giữ nguyên baseline v8, firmware Nokia N95 và OMAP2420 vẫn `NOT_IMPLEMENTED`. Tập trung bước tiếp theo vào iPhone ARM32 shutdown/restart và sau đó khám phá đường hỗ trợ ARM1136 / OMAP2420 ở nhánh nghiên cứu riêng.
+
+## Gate C1b — ARM32 Linux shell command execution PASS (2026-10-09 ICT)
+
+Ảnh chụp màn hình iPhone do người kiểm thử cung cấp ngay sau Gate C1 cho thấy `~ # uname -m` trả về chính xác `armv7l` và `~ # cat /etc/alpine-release` trả về `3.24.2` trên UTM SE Lite v9. Bàn phím iPhone được mở và terminal nhận/thực thi lệnh thực tế. Đây là **bằng chứng thực thi lệnh ARM32 trên thiết bị**, vượt qua việc chỉ in marker từ startup script.
+
+Lệnh gõ sai `cat /etc:` trước đó trả về `No such file or directory`; thử lại đường dẫn chính xác thành công, đây là lỗi nhập lệnh thông thường, không phải lỗi VM.
+
+**Gate C1b = PASS: shell commands / ARMv7l / Alpine 3.24.2 / iPhone keyboard.**
+
+**Gate C2 = PENDING:** chưa nhận bằng chứng lệnh `poweroff -f`, VM tắt, sau đó `Play` và khởi động lần thứ hai. Không đánh dấu STABILITY PASS trước bằng chứng đó.
+
+Giữ nguyên baseline v8 và ranh giới Nokia N95 OMAP2420 = NOT_IMPLEMENTED.
