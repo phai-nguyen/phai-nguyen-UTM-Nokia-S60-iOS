@@ -53,3 +53,27 @@ Gate D2b: UART OMAP2420 thật tại `0x4806A000` (UART1; UART2/3 `0x4806C000` /
 - Nguyên nhân gần: `memory_region_init_ram(&s->sram, OBJECT(machine), ...)` truyền `MachineState` không phải `DeviceState` vào owner RAM. QEMU cần owner `DeviceState` hoặc `NULL`; kiểu này được đối chiếu với các board QEMU hiện có dùng `NULL`.
 - Commit [`d4e3e9b5`](https://github.com/phai-nguyen/phai-nguyen-UTM-Nokia-S60-iOS/commit/d4e3e9b53a3eb7980ed7370d97b58264e95e9474) sửa thành `memory_region_init_ram(&s->sram, NULL, ...)`. Chỉ ảnh hưởng mã machine nghiên cứu được inject vào source QEMU tạm trong CI, **không thay đổi app v8/v9**.
 - Run thử lại [#37904307368](https://github.com/phai-nguyen/phai-nguyen-UTM-Nokia-S60-iOS/actions/runs/37904307368) — kết quả chưa xác minh tại thời điểm ghi. Chỉ công bố D2a PASS khi log có đủ SRAM/SDRAM/REV/ELF và negative boundary PASS.
+
+## Gate D2a — BUILD + ARM1136 MEMORY EXECUTION PASS (2026-10-09 ICT)
+
+**Run [#37904307368](https://github.com/phai-nguyen/phai-nguyen-UTM-Nokia-S60-iOS/actions/runs/37904307368) COMPLETED / SUCCESS**, sau sửa lỗi QOM RAM owner ở commit `d4e3e9b53a3eb7980ed7370d97b58264e95e9474`.
+
+- Artifact [`N95-OMAP2420-GATE-D2A-DIAGNOSTIC-LOGS` #11603916809](https://github.com/phai-nguyen/phai-nguyen-UTM-Nokia-S60-iOS/actions/runs/37904307368/artifacts/11603916809) chứa log source pin, configure/build, machine/CPU help, trace ARMv6, runtime, negative RAM test và trạng thái.
+- Artifact [`OMAP2420-D2A-ARM1136-MEMORY-TEST-ELF` #11603872018](https://github.com/phai-nguyen/phai-nguyen-UTM-Nokia-S60-iOS/actions/runs/37904307368/artifacts/11603872018) là chương trình ARMv6 chẩn đoán (không phải firmware Nokia).
+- QEMU `v10.0.12` nhận `-M omap2420-earlydiag` và `-cpu arm1136`; ELF đặt entry `0x80010000`.
+- Log thực tế cho thấy:
+  ```text
+  D2A_OMAP2420_SRAM=PASS
+  D2A_OMAP2420_SDRAM=PASS
+  D2A_ARM1136_REV=PASS
+  D2A_BOOT_ELF=PASS
+  D2A_UART=NOT_IMPLEMENTED
+  QEMU_EXIT_CODE=0
+  D2A_RAM_BOUNDARY_GUARD=PASS
+  GATE_D2A_STATUS=PASS
+  ```
+- Bài kiểm thử đọc/ghi đầu/cuối SRAM 0x40200000..0x4029FFFF và SDRAM 0x80000000..0x87FFFFFF, lệnh ARMv6 `REV`, thoát QEMU sạch qua semihosting, từ chối RAM 256MiB là **PASS trên Ubuntu GitHub Actions**.
+- **Chưa chứng minh** đầy đủ SoC OMAP2420, UART OMAP2, INTC, clock, timer, DMA, NAND/GPMC, ROM/firmware Nokia, Symbian S60 hoặc chạy board mới trên iPhone. Đó là các Gate D2b–D3 tiếp theo.
+- Không thay đổi/bắt buộc cài lại UTM SE Lite v8/v9; mọi sửa QEMU chỉ nằm trong mã nghiên cứu và source tạm của CI.
+
+**Kết luận:** Gate D2a = PASS. Bước sau: Gate D2b triển khai UART1 thật của OMAP2420 với MMIO và logging qua UART, không dùng semihosting làm thay thế.
