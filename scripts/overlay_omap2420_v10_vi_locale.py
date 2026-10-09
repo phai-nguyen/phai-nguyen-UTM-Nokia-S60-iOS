@@ -48,7 +48,7 @@ def main(v8, v10, out, report):
         base9 = plistlib.loads(build.read(INFO))
         if base8["CFBundleIdentifier"] != "com.phai.nokias60.UTM-SE":
             raise RuntimeError("Unexpected v8 baseline identity")
-        if base9["CFBundleIdentifier"] != "com.phai.nokias60.omapdiag.UTM-SE":
+        if base10["CFBundleIdentifier"] != "com.phai.nokias60.omapdiag.UTM-SE":
             raise RuntimeError("Expected isolated OMAP2420 v10 bundle ID")
         if base9["MinimumOSVersion"] != "15.0":
             raise RuntimeError("iOS minimum OS changed")
@@ -106,5 +106,5 @@ def main(v8, v10, out, report):
 
 if __name__ == "__main__":
     if len(sys.argv) != 5:
-        raise SystemExit("usage: overlay_arm32_v10_vi_locale.py v8.ipa v10.ipa v10-vi.ipa report.json")
+        raise SystemExit("usage: overlay_omap2420_v10_vi_locale.py v8.ipa v10.ipa v10-vi.ipa report.json")
     main(*sys.argv[1:])
