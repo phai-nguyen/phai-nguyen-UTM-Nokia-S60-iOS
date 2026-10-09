@@ -1,0 +1,243 @@
+name: UTM-SE-LITE-V9-ARM32-LINUX-IPA
+
+# Isolated experimental IPA with a separate bundle ID. No Nokia ROM.
+on:
+  push:
+    branches:
+      - feat/arm32-linux-lite-v9
+    paths:
+      - .github/workflows/14-lite-v9-arm32-linux-ipa.yml
+      - scripts/patch_utm_arm32_linux_wizard_v9.py
+      - scripts/overlay_arm32_v9_vi_locale.py
+      - scripts/build_utm_se.sh
+      - scripts/build_dyld_safe_lite.sh
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: utm-n95-arm32-ipa-v9
+  cancel-in-progress: false
+
+env:
+  UTM_SHA: 7eadb056ae0f91d979059544d0ddcd2d5a40be92
+  BASELINE_SHA256: 671535ffec7f866688537ee86db8c5eb53aeccbd78f3fc517dcb9dcf871e6caa
+  BUNDLE_PREFIX: com.phai.nokias60.arm32
+  IPA_NAME: NokiaUTM-SE-Lite-v9-ARM32-Viet-unsigned.ipa
+
+jobs:
+  arm32-v9:
+    name: Build UTM SE Lite v9 ARM32 (8 QEMU engines / 15.0+ / no-JIT)
+    runs-on: macos-26
+    timeout-minutes: 120
+    steps:
+      - name: Checkout isolated ARM32 v9 research scripts
+        uses: actions/checkout@v4
+
+      - name: Checkout exact pinned UTM with submodules
+        uses: actions/checkout@v4
+        with:
+          repository: utmapp/UTM
+          ref: 7eadb056ae0f91d979059544d0ddcd2d5a40be92
+          path: upstream/UTM
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Download official matching seven-engine sysroot
+        uses: actions/download-artifact@v4
+        with:
+          name: Sysroot-ios-tci-arm64
+          repository: utmapp/UTM
+          run-id: 36090554968
+          github-token: ${{ github.token }}
+          path: upstream-artifact
+
+      - name: Download compile-PASS ARM32 iOS framework
+        uses: actions/download-artifact@v4
+        with:
+          name: QEMU-ARM32-TCI-RESEARCH-FRAMEWORK
+          repository: phai-nguyen/phai-nguyen-UTM-Nokia-S60-iOS
+          run-id: 37856923827
+          github-token: ${{ github.token }}
+          path: arm32-artifact
+
+      - name: Download device-PASS Vietnamese v8 IPA (read only)
+        uses: actions/download-artifact@v4
+        with:
+          name: NokiaUTM-SE-Lite-v8-TiengViet-IPA
+          repository: phai-nguyen/phai-nguyen-UTM-Nokia-S60-iOS
+          run-id: 37788063413
+          github-token: ${{ github.token }}
+          path: baseline-v8
+
+      - name: Verify pins and stage eight QEMU engines in temporary sysroot
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          mkdir -p out/diagnostics/arm32-v9
+          test "$(git -C upstream/UTM rev-parse HEAD)" = "$UTM_SHA"
+          test -s upstream-artifact/sysroot.tgz
+          test -s baseline-v8/NokiaUTM-SE-Lite-v8-TiengViet-unsigned.ipa
+          echo "$BASELINE_SHA256  baseline-v8/NokiaUTM-SE-Lite-v8-TiengViet-unsigned.ipa" |
+            shasum -a 256 -c - | tee out/diagnostics/arm32-v9/v8-baseline-sha256-check.log
+          tar -xzf upstream-artifact/sysroot.tgz -C upstream/UTM
+          FWS="upstream/UTM/sysroot-ios-tci-arm64/Frameworks"
+          test -d "$FWS"
+          for arch in aarch64 i386 x86_64 ppc ppc64 riscv64 m68k; do
+            test -s "$FWS/qemu-$arch-softmmu.framework/qemu-$arch-softmmu"
+            shasum -a 256 "$FWS/qemu-$arch-softmmu.framework/qemu-$arch-softmmu" \
+              >> out/diagnostics/arm32-v9/seven-before.sha256
+          done
+          test -s arm32-artifact/qemu-arm-softmmu.framework/qemu-arm-softmmu
+          test ! -e "$FWS/qemu-arm-softmmu.framework"
+          cp -R arm32-artifact/qemu-arm-softmmu.framework "$FWS/"
+          test -s "$FWS/qemu-arm-softmmu.framework/qemu-arm-softmmu"
+          file "$FWS/qemu-arm-softmmu.framework/qemu-arm-softmmu" | tee out/diagnostics/arm32-v9/arm32-file.txt
+          xcrun lipo -info "$FWS/qemu-arm-softmmu.framework/qemu-arm-softmmu" |
+            tee out/diagnostics/arm32-v9/arm32-lipo.txt
+          otool -L "$FWS/qemu-arm-softmmu.framework/qemu-arm-softmmu" |
+            tee out/diagnostics/arm32-v9/arm32-dylib-imports.txt
+          grep -F arm64 out/diagnostics/arm32-v9/arm32-file.txt
+          shasum -a 256 "$FWS/qemu-arm-softmmu.framework/qemu-arm-softmmu" \
+            > out/diagnostics/arm32-v9/arm32-input.sha256
+          xcodebuild -version | tee out/diagnostics/arm32-v9/xcode-version.txt
+          echo "UTM_SHA=$UTM_SHA" | tee out/diagnostics/arm32-v9/provenance.txt
+          echo 'EXPECTED_QEMU_ENGINES=8' >> out/diagnostics/arm32-v9/provenance.txt
+          echo 'ESIGN=UNSIGNED' >> out/diagnostics/arm32-v9/provenance.txt
+          echo 'NOKIA_OMAP2420=NOT_IMPLEMENTED' >> out/diagnostics/arm32-v9/provenance.txt
+
+      - name: Apply pinned iOS SDK compatibility
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 scripts/patch_utm_ios26.py upstream/UTM \
+            2>&1 | tee out/diagnostics/arm32-v9/sdk-compat.log
+
+      - name: Preserve tested UIKit file picker and bundled ISO handling
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 scripts/patch_utm_uikit_copy_picker.py upstream/UTM \
+            2>&1 | tee out/diagnostics/arm32-v9/uikit-picker.log
+          python3 scripts/patch_utm_bundled_iso_drive.py upstream/UTM \
+            2>&1 | tee out/diagnostics/arm32-v9/bundled-iso.log
+          grep -F 'EKA2L1_STYLE_UIKIT_PICKER_PATCH=PASS' out/diagnostics/arm32-v9/uikit-picker.log
+          grep -F 'BUNDLED_CD_PATCH=PASS' out/diagnostics/arm32-v9/bundled-iso.log
+
+      - name: Enable Linux ARM32 virt in normal machine wizard
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 scripts/patch_utm_arm32_linux_wizard_v9.py upstream/UTM \
+            2>&1 | tee out/diagnostics/arm32-v9/arm32-wizard.log
+          grep -F 'ARM32_LINUX_WIZARD_PATCH=PASS' out/diagnostics/arm32-v9/arm32-wizard.log
+          (
+            cd upstream/UTM
+            git diff --check
+            git diff -- Platform/Shared/VMWizardHardwareView.swift
+          ) > out/diagnostics/arm32-v9/swift-wizard-diff.txt
+
+      - name: Build independently installable ARM32 v9 app
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          bash scripts/build_utm_se.sh
+
+      - name: Verify ARM32 engine actually embedded in Xcode archive
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          APP="out/UTMSE.xcarchive/Products/Applications/UTM SE.app"
+          test -s "$APP/Frameworks/qemu-arm-softmmu.framework/qemu-arm-softmmu"
+          for arch in arm aarch64 i386 x86_64 ppc ppc64 riscv64 m68k; do
+            test -s "$APP/Frameworks/qemu-$arch-softmmu.framework/qemu-$arch-softmmu"
+          done
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist" |
+            tee out/diagnostics/arm32-v9/bundle-id.txt
+          grep -Fx 'com.phai.nokias60.arm32.UTM-SE' out/diagnostics/arm32-v9/bundle-id.txt
+          /usr/libexec/PlistBuddy -c 'Print :MinimumOSVersion' "$APP/Info.plist" |
+            tee out/diagnostics/arm32-v9/minimum-ios.txt
+          grep -Fx '15.0' out/diagnostics/arm32-v9/minimum-ios.txt
+          otool -L "$APP/Frameworks/qemu-arm-softmmu.framework/qemu-arm-softmmu" \
+            > out/diagnostics/arm32-v9/arm32-archive-otool.txt
+          echo 'ARM32_ARCHIVE_ENGINE=PASS'
+
+      - name: Package separate Lite v9 IPA while preserving all engines
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          bash scripts/build_dyld_safe_lite.sh \
+            "$PWD/out/NokiaUTM-SE-v1-unsigned.ipa" \
+            "$PWD/out/NokiaUTM-SE-Lite-v9-ARM32-raw-unsigned.ipa" \
+            "$PWD/out/diagnostics/arm32-v9/lite" \
+            2>&1 | tee out/diagnostics/arm32-v9/lite-package.log
+
+      - name: Overlay validated Vietnamese resources from v8
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 scripts/overlay_arm32_v9_vi_locale.py \
+            baseline-v8/NokiaUTM-SE-Lite-v8-TiengViet-unsigned.ipa \
+            out/NokiaUTM-SE-Lite-v9-ARM32-raw-unsigned.ipa \
+            "out/$IPA_NAME" \
+            out/diagnostics/arm32-v9/v9-locale-verification.json \
+            2>&1 | tee out/diagnostics/arm32-v9/overlay-locale.log
+          grep -F '"status": "PASS"' out/diagnostics/arm32-v9/v9-locale-verification.json
+
+      - name: Validate ARM32 framework and 7 baseline engines in final IPA
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 - <<'PY'
+          import json, os, plistlib, zipfile
+          from pathlib import Path
+          p=Path('out') / os.environ['IPA_NAME']
+          a=json.loads(Path('out/diagnostics/arm32-v9/v9-locale-verification.json').read_text())
+          assert a['status'] == 'PASS' and a['framework_count'] == 8
+          with zipfile.ZipFile(p) as z:
+              assert z.testzip() is None
+              prefix="Payload/UTM SE.app/"
+              info=plistlib.loads(z.read(prefix+"Info.plist"))
+              assert info['CFBundleIdentifier'] == 'com.phai.nokias60.arm32.UTM-SE'
+              assert info['MinimumOSVersion'] == '15.0'
+              assert 'vi' in info['CFBundleLocalizations']
+              for cpu in ("arm","aarch64","i386","x86_64","ppc","ppc64","riscv64","m68k"):
+                  member=prefix+f"Frameworks/qemu-{cpu}-softmmu.framework/qemu-{cpu}-softmmu"
+                  assert member in z.namelist()
+          print('ARM32_8_ENGINES_IN_IPA=PASS')
+          print('ARM32_IPA_CONTENT_CHECK=PASS')
+          print('IPHONE_DEVICE_BOOT=NOT_YET_TESTED')
+          PY
+          shasum -a 256 "out/$IPA_NAME" | tee out/diagnostics/arm32-v9/final-ipa-sha256.txt
+          echo "STATUS=PASS" | tee out/diagnostics/arm32-v9/BUILD-STATUS.txt
+          {
+            echo '### UTM SE Lite v9 — ARM32 Linux iOS 15.0+'
+            echo '- New independently installable bundle ID: com.phai.nokias60.arm32.UTM-SE'
+            echo '- 8 QEMU engines (original 7 + arm-softmmu) packaged'
+            echo '- Pinned UTM source and iOS TCI/no-JIT ARM32 framework'
+            echo '- Linux ARM32 QEMU virt (Cortex-A15), 256 MiB RAM preset'
+            echo '- ESign unsigned IPA; Vietnamese localization from device-tested v8'
+            echo '- Alpine Linux ARM32 guest/device test: **PENDING**'
+            echo '- Nokia N95 hardware: NOT IMPLEMENTED'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload ARM32 Lite v9 IPA for ESign
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: NokiaUTM-SE-Lite-v9-ARM32-Viet-IPA
+          path: out/NokiaUTM-SE-Lite-v9-ARM32-Viet-unsigned.ipa
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload ARM32 build and validation logs even if failed
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: NokiaUTM-SE-Lite-v9-ARM32-BUILD-LOGS
+          path: out/diagnostics/
+          if-no-files-found: warn
+          retention-days: 14
