@@ -22,6 +22,7 @@
 #include "hw/qdev-core.h"
 #include "exec/address-spaces.h"
 #include "qemu/error-report.h"
+#include "qemu/log.h"
 #include "qemu/units.h"
 #include "system/qtest.h"
 #include "system/system.h"
