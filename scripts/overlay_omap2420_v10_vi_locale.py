@@ -45,12 +45,12 @@ def main(v8, v10, out, report):
         if not all(p not in build.namelist() for p in LOCALES):
             raise RuntimeError("v10 unexpectedly already contains a Vietnamese resource")
         base8 = plistlib.loads(source.read(INFO))
-        base9 = plistlib.loads(build.read(INFO))
+        base10 = plistlib.loads(build.read(INFO))
         if base8["CFBundleIdentifier"] != "com.phai.nokias60.UTM-SE":
             raise RuntimeError("Unexpected v8 baseline identity")
         if base10["CFBundleIdentifier"] != "com.phai.nokias60.omapdiag.UTM-SE":
             raise RuntimeError("Expected isolated OMAP2420 v10 bundle ID")
-        if base9["MinimumOSVersion"] != "15.0":
+        if base10["MinimumOSVersion"] != "15.0":
             raise RuntimeError("iOS minimum OS changed")
         if build.read(MAIN) == source.read(MAIN):
             raise RuntimeError("v10 app main executable unexpectedly identical to v8")
@@ -61,11 +61,11 @@ def main(v8, v10, out, report):
             member = ROOT + f"Frameworks/qemu-{cpu}-softmmu.framework/qemu-{cpu}-softmmu"
             if member not in build.namelist():
                 raise RuntimeError(f"Missing QEMU engine in v10: {cpu}")
-        existing = base9.get("CFBundleLocalizations", [])
+        existing = base10.get("CFBundleLocalizations", [])
         if not isinstance(existing, list):
             raise RuntimeError("Bad CFBundleLocalizations")
-        base9["CFBundleLocalizations"] = sorted(set(existing) | {"vi", "en"})
-        new_info = plistlib.dumps(base9, fmt=plistlib.FMT_BINARY, sort_keys=False)
+        base10["CFBundleLocalizations"] = sorted(set(existing) | {"vi", "en"})
+        new_info = plistlib.dumps(base10, fmt=plistlib.FMT_BINARY, sort_keys=False)
         with zipfile.ZipFile(out, "w", allowZip64=True) as result:
             for member in build.infolist():
                 part = copy.copy(member)
@@ -97,7 +97,7 @@ def main(v8, v10, out, report):
         "status": "PASS", "v8_baseline_sha256": sha256(v8),
         "v10_unlocalized_sha256": sha256(v10), "v10_arm32_vi_sha256": sha256(out),
         "v10_arm32_vi_bytes": out.stat().st_size, "framework_count": len(FRAMEWORKS),
-        "v10_bundle_id": base9["CFBundleIdentifier"],
+        "v10_bundle_id": base10["CFBundleIdentifier"],
         "v8_baseline_untouched": True, "all_v10_code_and_framework_bytes_unchanged": True,
         "iphone_arm32_guest_test": "NOT_RUN", "omap2420_n95": "NOT_IMPLEMENTED",
     }
