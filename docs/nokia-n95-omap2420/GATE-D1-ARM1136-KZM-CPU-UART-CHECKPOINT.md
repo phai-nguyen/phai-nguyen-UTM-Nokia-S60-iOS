@@ -54,3 +54,15 @@ ARM1136_BAREMETAL_BOOT=PASS
 ## Scope / Safety clarification
 
 Nghiên cứu giả lập phần cứng để chạy hệ điều hành cũ; không liên quan đến khai thác, xâm nhập, malware, credential, persistence hoặc tấn công mạng. Không giả lập nguồn ROM Nokia trong GitHub. Giữ nguyên UTM SE Lite v8/v9, app Việt hóa, ESign, iOS 15.0, TCI/no-JIT.
+
+## Gate D1 COMPLETED / SUCCESS — bằng chứng GitHub Actions 2026-10-09
+
+- **Run [#37897640183](https://github.com/phai-nguyen/phai-nguyen-UTM-Nokia-S60-iOS/actions/runs/37897640183): SUCCESS**.
+- Mọi bước CI hoàn thành: cài công cụ, tải mã QEMU `utmapp/qemu@v10.0.12-utm`, biên dịch `qemu-system-arm` native trên Ubuntu, lắp ráp và thực thi ELF ARMv6, xuất log và payload.
+- **[Log artifact #11601416370](https://github.com/phai-nguyen/phai-nguyen-UTM-Nokia-S60-iOS/actions/runs/37897640183/artifacts/11601416370)**.
+- **[Baremetal ELF artifact #11601675090](https://github.com/phai-nguyen/phai-nguyen-UTM-Nokia-S60-iOS/actions/runs/37897640183/artifacts/11601675090)** (chỉ chương trình kiểm tra nhỏ; không phải Linux hoặc firmware Nokia).
+- Log có `SOURCE_KZM_ARM1136_UART=PASS`, `PINNED_QEMU10_ARM1136_CPU_MACHINE=PASS`, `ARM1136_KZM_UART_MMIO=PASS`, `ARM1136_ARMV6_REV_INSTRUCTION=PASS`, `ARM1136_BAREMETAL_BOOT=PASS`, `QEMU_EXIT_CODE=0`, `HOST_ARM1136_KZM_ARMV6_EXECUTION=PASS`, `ARM1136_GATE_D1_STATUS=PASS`.
+- **Chứng minh:** emulator CPU ARM1136 + ARMv6 thật và bus UART i.MX31 trên máy Linux. **Chưa chứng minh:** CPU ARM1136 chạy iOS TCI trên iPhone (v9 chỉ chạy Cortex-A15 ARMv7) hoặc UART OMAP2420, machine Nokia N95, Symbian boot.
+- **Gate tiếp theo:** mô hình OMAP2420 MMIO/boot tối thiểu trong QEMU 10 fork riêng và thử UART thật của OMAP, không dùng UART i.MX31 làm bằng chứng về Nokia.
+
+Giữ nguyên UTM SE Lite v8/v9 và các IPA đã DEVICE PASS.
