@@ -51,6 +51,31 @@ mkdir -p "$OUT_DIR"
 if [[ ! -d "$APP" ]]; then
   echo "ERROR: app missing from xcarchive: $APP"; exit 5
 fi
+
+# ARM32-v9 opt-in only: upstream's iOS-SE target doesn't embed arm-softmmu
+# even when this QEMU framework is present in the temporary build sysroot.
+# Stage the verified research dylib AFTER archive and BEFORE generating IPA.
+# No effect unless ARM32_EXTRA_FRAMEWORK is provided by the v9-only workflow.
+if [[ -n "${ARM32_EXTRA_FRAMEWORK:-}" ]]; then
+  EXTRA_SRC="$ARM32_EXTRA_FRAMEWORK"
+  EXTRA_BIN="$EXTRA_SRC/qemu-arm-softmmu"
+  EXTRA_DST="$APP/Frameworks/qemu-arm-softmmu.framework"
+  test -s "$EXTRA_BIN" || {
+    echo "ERROR: ARM32_EXTRA_FRAMEWORK missing qemu-arm-softmmu: $EXTRA_SRC"; exit 6;
+  }
+  test ! -e "$EXTRA_DST" || {
+    echo "ERROR: unexpected ARM32 framework already exists in Xcode archive"; exit 7;
+  }
+  mkdir -p "$APP/Frameworks"
+  cp -R "$EXTRA_SRC" "$EXTRA_DST"
+  test -s "$EXTRA_DST/qemu-arm-softmmu"
+  cmp "$EXTRA_BIN" "$EXTRA_DST/qemu-arm-softmmu"
+  shasum -a 256 "$EXTRA_BIN" "$EXTRA_DST/qemu-arm-softmmu" \
+    | tee "$OUT_DIR/diagnostics/arm32-v9-injected-framework.sha256"
+  otool -L "$EXTRA_DST/qemu-arm-softmmu" \
+    > "$OUT_DIR/diagnostics/arm32-v9-injected-framework.otool"
+  echo 'ARM32_FRAMEWORK_STAGED_BEFORE_IPA=PASS'
+fi
 IPA_STAGING="$OUT_DIR/ipa-staging"
 rm -rf "$IPA_STAGING"
 mkdir -p "$IPA_STAGING/Payload"
