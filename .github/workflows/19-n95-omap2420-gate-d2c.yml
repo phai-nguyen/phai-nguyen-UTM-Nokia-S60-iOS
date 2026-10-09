@@ -7,7 +7,7 @@ on:
     branches:
       - research/n95-omap2420-gate-d2c
     paths:
-      - .github/workflows/18-n95-omap2420-gate-d2c.yml
+      - .github/workflows/19-n95-omap2420-gate-d2c.yml
       - scripts/test_omap2420_intc_gate_d2c.sh
       - tests/omap2420/**
   workflow_dispatch:
@@ -20,7 +20,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  omap2420-d2b:
+  omap2420-d2c:
     name: Gate D2c - ARM1136 UART1 RX loopback + OMAP2 INTC IRQ72 and CPU handler
     runs-on: ubuntu-24.04
     timeout-minutes: 55
