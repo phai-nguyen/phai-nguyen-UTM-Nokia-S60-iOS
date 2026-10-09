@@ -45,8 +45,11 @@ python3 - "$FRAMEWORKS" "$REPORT" <<'PY'
 from pathlib import Path
 import subprocess
 import sys
+import os
 fw, report = Path(sys.argv[1]), Path(sys.argv[2])
 names = ("aarch64", "i386", "x86_64", "ppc", "ppc64", "riscv64", "m68k")
+if os.environ.get("REQUIRE_ARM32") == "1":
+    names += ("arm",)
 results = []
 for cpu in names:
     file = fw / f"qemu-{cpu}-softmmu.framework" / f"qemu-{cpu}-softmmu"
@@ -64,8 +67,8 @@ for cpu in names:
     subprocess.run(["otool", "-L", str(file)], check=True, stdout=subprocess.DEVNULL)
     results.append((cpu,before,after))
     print(f"{cpu}: {before:,} -> {after:,} ({100*(before-after)/before:.1f}% stripped)",flush=True)
-assert len(results) == 7
-print("STRIP=PASS")
+assert len(results) == (8 if os.environ.get("REQUIRE_ARM32") == "1" else 7)
+print("STRIP=PASS ENGINE_COUNT=" + str(len(results)))
 (report / "strip-report.tsv").write_text("cpu\tbefore\tafter\n" + "".join(f"{n}\t{b}\t{a}\n" for n,b,a in results))
 PY
 
@@ -118,6 +121,7 @@ result={
 "source_sha256":digest(src),"lite_sha256":digest(dst),
 "reduction_percent":round(100*(1-dst.stat().st_size/src.stat().st_size),2),
 "all_source_files_preserved":True,"all_seven_qemu_engines_preserved":True,
+"all_eight_qemu_engines_preserved":True if __import__("os").environ.get("REQUIRE_ARM32") == "1" else None,
 "dyld_dependency_check":"PASS","zip_integrity":"PASS",
 "iphone_device_test":"PENDING","nokia_machine":"NOT IMPLEMENTED"}
 (report/"size-result.json").write_text(json.dumps(result,indent=2))
