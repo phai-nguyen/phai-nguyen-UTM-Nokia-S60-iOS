@@ -105,3 +105,20 @@ Lệnh gõ sai `cat /etc:` trước đó trả về `No such file or directory`;
 **Gate C2 = PENDING:** chưa nhận bằng chứng lệnh `poweroff -f`, VM tắt, sau đó `Play` và khởi động lần thứ hai. Không đánh dấu STABILITY PASS trước bằng chứng đó.
 
 Giữ nguyên baseline v8 và ranh giới Nokia N95 OMAP2420 = NOT_IMPLEMENTED.
+
+## Gate C2 — iPhone ARM32 restart PASS, xác nhận bởi người kiểm thử (2026-10-09 ICT)
+
+Người kiểm thử xác nhận quá trình tắt và **khởi động lại** máy ảo Alpine ARM32 trên UTM SE Lite v9 đã PASS. Ảnh chụp sau khi khởi động lại hiển thị phiên boot mới, các marker:
+
+```text
+=== Alpine Linux ARM32 QEMU virt ===
+ALPINE_ARM32_BOOT=PASS
+ALPINE_ARCH=armv7l
+ALPINE_RELEASE=3.24.2
+ALPINE_ARM32_SMOKE_PASS
+~ #
+```
+
+Mốc trước **C1b** đã xác nhận chạy `uname -m` → `armv7l`, `cat /etc/alpine-release` → `3.24.2`, bàn phím/serial terminal PASS. **Gate C2 = USER-REPORTED PASS** về shutdown/restart và được ảnh boot lại hỗ trợ; không suy diễn thêm số vòng stress-test dài hạn.
+
+**Bắt đầu Gate D trên nhánh nghiên cứu độc lập:** đánh giá ARM1136/ARMv6 và QEMU machine compatibility trước khi mô hình hóa Nokia N95 OMAP2420. Cần nhớ: Linux ARMv7 `vmlinuz-lts` hiện tại không thể dùng làm bài test ARM1136 (ARMv6). Chưa có machine `omap2420` hay Symbian boot. Giữ nguyên v8/v9.
