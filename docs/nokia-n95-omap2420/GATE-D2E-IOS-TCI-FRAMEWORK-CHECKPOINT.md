@@ -62,3 +62,28 @@
 - [Commit `d61bb4eed4b43ab9d7a3de55f4f6167021e5e24a`](https://github.com/phai-nguyen/phai-nguyen-UTM-Nokia-S60-iOS/commit/d61bb4eed4b43ab9d7a3de55f4f6167021e5e24a) sửa byte-scan trên **hai tệp** raw Mach-O + packaged framework để tìm chính xác chuỗi `-machine\0`; vẫn FAIL nếu thiếu bất kỳ chuỗi nào và vẫn buộc kiểm SHA 7 engine, dependency closure, kiến trúc arm64 host/iOS15+.
 - [Run #37924268847](https://github.com/phai-nguyen/phai-nguyen-UTM-Nokia-S60-iOS/actions/runs/37924268847) được trigger; **chưa nhận kết quả PASS/FAIL tại lúc ghi note**. Chỉ cập nhật kết luận sau khi xem log hoàn tất.
 - Chưa có IPA nghiên cứu v10, chưa có thử nghiệm OMAP2420 trên iPhone và chưa boot N95/Symbian; v8/v9 ổn định vẫn nguyên.
+
+## Gate D2e chính thức PASS — 2026-10-09
+
+- **[Run #37924268847](https://github.com/phai-nguyen/phai-nguyen-UTM-Nokia-S60-iOS/actions/runs/37924268847): COMPLETED / SUCCESS.** Bản sửa ở commit `d61bb4eed4b43ab9d7a3de55f4f6167021e5e24a`.
+- [Framework artifact #11613786984](https://github.com/phai-nguyen/phai-nguyen-UTM-Nokia-S60-iOS/actions/runs/37924268847/artifacts/11613786984) tên `QEMU-OMAP2420-D2E-IOS-TCI-ARM32-RESEARCH-FRAMEWORK`; dung lượng zip khoảng 24.3 MB. Đây là **framework nghiên cứu**, **không phải IPA**.
+- [Log artifact #11613886670](https://github.com/phai-nguyen/phai-nguyen-UTM-Nokia-S60-iOS/actions/runs/37924268847/artifacts/11613886670).
+- Job trên macOS hoàn thành toàn bộ bước checkout, pin UTM/QEMU, sysroot, compile, đóng framework, đóng artifact. Log chứa:
+  ```text
+  raw_macho: omap2420-earlydiag=PASS
+  raw_macho: omap2420-uartdiag=PASS
+  raw_macho: omap2420-intcdiag=PASS
+  raw_macho: omap2420-timerdiag=PASS
+  staged_framework: omap2420-earlydiag=PASS
+  staged_framework: omap2420-uartdiag=PASS
+  staged_framework: omap2420-intcdiag=PASS
+  staged_framework: omap2420-timerdiag=PASS
+  D2E_FOUR_OMAP_MACHINE_BYTE_SCAN=PASS
+  D2E_FOUR_OMAP_DIAGNOSTIC_MACHINE_NAMES_IN_IOS_FRAMEWORK=PASS
+  SEVEN_FRAMEWORKS=UNCHANGED
+  ARM32_DIAGNOSTIC_STATUS=PASS EXIT_CODE=0 STAGE=complete
+  D2E_IOS_TCI_FRAMEWORK=PASS
+  ```
+- **Chỉ xác nhận compile/link/staging/binary name audit trên macOS**. Chưa chạy `-M omap2420-timerdiag` trên iPhone; nhắc lại kiểm tra chuỗi QOM trong Mach-O **không đồng nghĩa** máy ảo đã chạy. D2a-D2d đã chạy trên Ubuntu riêng.
+- Linker vẫn đưa warning: `ui_spice-display-metal.m.o` được biên dịch với iOS SDK phiên bản 26.5 cao hơn deployment target iOS 15.0, nhưng không chặn kết quả. Cần test thực tế iOS 18.7 để xác minh runtime.
+- Tiếp theo: build IPA v10 nghiên cứu **tách riêng** hoặc test framework với harness đủ dependencies, tên/bundle rõ ràng, hỗ trợ bare-metal ELF ARM1136; giữ nguyên v8/v9 và 7 engines. **Không có Nokia N95 Symbian boot**.
