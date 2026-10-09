@@ -47,3 +47,28 @@ Kết quả của GitHub Actions (dù PASS) chỉ là **Linux host QEMU10**, kh�
 ## 4. Hướng tiếp theo sau khi D2c PASS
 
 Gate D2d: mở rộng IRQ controller (mask/ack/retrigger/multiple IRQ và FIQ nếu cần), clock/timer/PRCM tối thiểu, kiểm định MMIO qua guest/QTest, test reboot và reset. Sau đó mới nghiên cứu iOS framework và đóng IPA nghiên cứu riêng.
+
+## Gate D2c — COMPLETED / SUCCESS (09/10/2026 ICT)
+
+**Actions [#37911548247](https://github.com/phai-nguyen/phai-nguyen-UTM-Nokia-S60-iOS/actions/runs/37911548247): COMPLETED / SUCCESS.** Một run #37911501299 trước đó bị hủy do workflow trùng; **không** dùng run cancelled làm bằng chứng.
+
+- [Log artifact #11606517753 — N95-OMAP2420-GATE-D2C-UART1-DIAGNOSTIC-LOGS](https://github.com/phai-nguyen/phai-nguyen-UTM-Nokia-S60-iOS/actions/runs/37911548247/artifacts/11606517753)
+- [Bare-metal ELF artifact #11607166503 — OMAP2420-D2C-ARM1136-IRQ72-TEST-ELF](https://github.com/phai-nguyen/phai-nguyen-UTM-Nokia-S60-iOS/actions/runs/37911548247/artifacts/11607166503)
+- Mã QEMU `utmapp/qemu@v10.0.12-utm` build được machine riêng `omap2420-intcdiag`, ARM1136/ARMv6, SRAM/SDRAM, 16550 UART1 và INTC subset. Log chứng thực:
+  ```text
+  D2C_PINNED_QEMU10_SOURCE_PATCH=PASS
+  D2C_MACHINE_ARM1136_UART1_INTC_BUILD=PASS
+  D2C_UART1_RX_LOOPBACK=PASS
+  D2C_INTC_IRQ72_RAW_MASK_PENDING=PASS
+  D2C_INTC_MIR_CLEAR_ACK=PASS
+  D2C_ARM1136_CPU_IRQ_EXCEPTION=PASS
+  D2C_D2A_MEMORY_ARMV6_REGRESSION=PASS
+  D2B_UART1_TX_BASELINE_REGRESSION=PASS
+  D2A_BASELINE_REGRESSION=PASS
+  D2C_RAM_GUARD=PASS
+  QEMU_EXIT_CODE=0
+  GATE_D2C_STATUS=PASS
+  ```
+- Guest test kích hoạt nhận UART1 qua MCR loopback, kiểm `LSR.DR` và `RBR`, nhìn bit UART1 IRQ72 trong ITR/PENDING_IRQ bank2, thực hiện MIR_CLEAR + ACK, rồi bật IRQ ARM1136 để vào **handler IRQ vector 0x18**. Handler xác thực byte nhận, ghi marker SRAM rồi return. Marker thành công in qua **serial-MMIO thật**, không dùng semihosting in log; `SYS_EXIT` chỉ dùng cho QEMU thoát.
+- **Ranh giới:** Đây mới là INTC subset chẩn đoán một UART IRQ, không phải model đầy đủ interrupt priority/FIQ/96 nguồn ngắt của OMAP2420. Chưa mô hình hóa đầy đủ clock/PRCM/timer/L4/GPMC/NAND/màn hình, không chạy Symbian hoặc Nokia N95 firmware, chưa build iOS framework/IPA mới. Các bản UTM v8/v9 đã DEVICE PASS vẫn nguyên.
+- Bước kế hợp lý là **Gate D2d:** thiết kế PRCM/clock + GPTimer tối thiểu, test IRQ timer độc lập và kiểm tra MMIO/reset/QTest, rồi mới quyết định tích hợp iOS. Không gộp Gate D2c Linux host PASS với ARM32 DEVICE PASS trên iPhone.
