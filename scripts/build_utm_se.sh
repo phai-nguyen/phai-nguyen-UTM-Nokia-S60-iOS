@@ -71,9 +71,9 @@ if [[ -n "${ARM32_EXTRA_FRAMEWORK:-}" ]]; then
   test -s "$EXTRA_DST/qemu-arm-softmmu"
   cmp "$EXTRA_BIN" "$EXTRA_DST/qemu-arm-softmmu"
   shasum -a 256 "$EXTRA_BIN" "$EXTRA_DST/qemu-arm-softmmu" \
-    | tee "$OUT_DIR/diagnostics/arm32-v9-injected-framework.sha256"
+    | tee "$OUT_DIR/diagnostics/omap2420-v10-injected-framework.sha256"
   otool -L "$EXTRA_DST/qemu-arm-softmmu" \
-    > "$OUT_DIR/diagnostics/arm32-v9-injected-framework.otool"
+    > "$OUT_DIR/diagnostics/omap2420-v10-injected-framework.otool"
   echo 'ARM32_FRAMEWORK_STAGED_BEFORE_IPA=PASS'
 fi
 IPA_STAGING="$OUT_DIR/ipa-staging"
