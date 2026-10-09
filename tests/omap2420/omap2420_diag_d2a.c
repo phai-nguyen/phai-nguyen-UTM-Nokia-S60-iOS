@@ -58,7 +58,7 @@ static void omap2420_d2a_init(MachineState *machine)
     qdev_realize(DEVICE(cpuobj), NULL, &error_fatal);
     cpu = ARM_CPU(cpuobj);
 
-    memory_region_init_ram(&s->sram, OBJECT(machine),
+    memory_region_init_ram(&s->sram, NULL,
                            "omap2420.d2a.sram", D2A_SRAM_SIZE, &error_fatal);
     memory_region_add_subregion(sysmem, D2A_SRAM_BASE, &s->sram);
     memory_region_add_subregion(sysmem, D2A_SDRAM_BASE, machine->ram);
