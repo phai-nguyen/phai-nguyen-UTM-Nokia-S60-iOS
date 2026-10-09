@@ -1,0 +1,97 @@
+name: NOKIA-N95-GATE-D2D-OMAP2420-PRCM-GPT1
+
+# Linux host diagnostic; builds pinned QEMU10 with independent OMAP UART
+# test machine. Does NOT build an iOS IPA or emulate Nokia N95 firmware.
+on:
+  push:
+    branches:
+      - research/n95-omap2420-gate-d2d
+    paths:
+      - .github/workflows/20-n95-omap2420-gate-d2d.yml
+      - scripts/test_omap2420_prcm_gptimer_gate_d2d.sh
+      - tests/omap2420/**
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: n95-omap2420-gate-d2d
+  cancel-in-progress: true
+
+jobs:
+  omap2420-d2c:
+    name: Gate D2d - ARM1136 PRCM wakeup clock and GPTimer1 IRQ37 + regressions
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    steps:
+      - name: Checkout separate QEMU ARM1136 OMAP UART research branch
+        uses: actions/checkout@v4
+
+      - name: Install QEMU10 compiler and ARMv6 toolchain
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            build-essential git curl wget xz-utils python3 python3-venv python3-pip \
+            ninja-build pkg-config libglib2.0-dev libpixman-1-dev zlib1g-dev libfdt-dev \
+            gcc-arm-linux-gnueabi binutils-arm-linux-gnueabi
+          python3 -m venv /tmp/qemu-gate-d2d-venv
+          /tmp/qemu-gate-d2d-venv/bin/pip install 'meson>=1.6,<2'
+          /tmp/qemu-gate-d2d-venv/bin/meson --version
+
+      - name: Build patched pinned QEMU10 and run UART1 serial plus regression gates
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          export PATH="/tmp/qemu-gate-d2d-venv/bin:$PATH"
+          bash scripts/test_omap2420_prcm_gptimer_gate_d2d.sh
+          grep -Fx 'GATE_D2D_STATUS=PASS' out/omap2420-d2d/diagnostics/BUILD-STATUS.txt
+          grep -Fx 'D2D_PRCM_GPT1_IRQ37_ARM1136_RUNTIME=PASS' out/omap2420-d2d/diagnostics/runtime-status.txt
+          grep -Fx 'D2C_UART_RX_IRQ72_BASELINE_REGRESSION=PASS' out/omap2420-d2d/diagnostics/irq-regression-status.txt
+          grep -Fx 'D2B_UART1_TX_BASELINE_REGRESSION=PASS' out/omap2420-d2d/diagnostics/uart-regression-status.txt
+          grep -Fx 'D2A_BASELINE_REGRESSION=PASS' out/omap2420-d2d/diagnostics/regression-status.txt
+          grep -Fx 'D2D_RAM_GUARD=PASS' out/omap2420-d2d/diagnostics/regression-status.txt
+
+      - name: Summary with precise implemented device boundaries
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p out/omap2420-d2d/diagnostics
+          {
+            echo '## Gate D2d OMAP2420 PRCM / GPTimer1 IRQ37 — pinned QEMU v10.0.12'
+            echo '- Machine omap2420-uartdiag; ARM1136 CPU, SRAM/SDRAM, UART1 MMIO 0x4806a000'
+            echo '- QEMU virtual-clock GPTimer1 overflow at 0x48028000, PRCM gate at 0x48008000'
+            echo '- IRQ37 via OMAP2 INTC subset to actual ARM1136 CPU IRQ exception'
+            echo '- Real ARM1136 GPT1 IRQ exception handler through low vector 0x18'
+            echo '- Not fake UART using semihosting: SYS_EXIT uses semihosting only for process termination'
+            echo '- D2a/D2b/D2c CPU/memory/UART TX/RX/IRQ72 regressions; invalid RAM rejected'
+            echo '- PRCM/GPTimer1 diagnostic subset only; full SoC clock/timer priority/FIQ not implemented'
+            echo '- Not Nokia N95 machine or Symbian boot; Linux-host CI only, no IPA'
+            echo '- UTM SE Lite v8/v9 iPhone baseline unmodified'
+            echo '### Status'
+            echo '~~~'
+            cat out/omap2420-d2d/diagnostics/BUILD-STATUS.txt 2>/dev/null || echo 'STATUS=NOT_STARTED'
+            cat out/omap2420-d2d/diagnostics/runtime-status.txt 2>/dev/null || true
+            cat out/omap2420-d2d/diagnostics/regression-status.txt 2>/dev/null || true
+            echo '~~~'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload complete UART and QEMU build diagnostic logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: N95-OMAP2420-GATE-D2C-UART1-DIAGNOSTIC-LOGS
+          path: out/omap2420-d2d/diagnostics/
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Upload open ARMv6 baremetal UART ELF test payloads
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: OMAP2420-D2D-ARM1136-GPT1-IRQ37-ELF
+          path: out/omap2420-d2d/payload/
+          if-no-files-found: warn
+          retention-days: 14
