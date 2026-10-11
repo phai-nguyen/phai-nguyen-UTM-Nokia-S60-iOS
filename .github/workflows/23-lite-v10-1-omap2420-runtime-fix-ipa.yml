@@ -1,0 +1,341 @@
+name: UTM-SE-LITE-V10-1-OMAP2420-RUNTIME-FIX-IPA
+
+# Isolated experimental IPA with a separate bundle ID. No Nokia ROM.
+on:
+  push:
+    branches:
+      - fix/utm-se-lite-v10-1-omap2420-virtio-boot
+    paths:
+      - .github/workflows/23-lite-v10-1-omap2420-runtime-fix-ipa.yml
+      - scripts/patch_utm_omap2420_diagnostic_v10.py
+      - scripts/overlay_omap2420_v10_1_vi_locale.py
+      - scripts/patch_utm_omap2420_v10_1_runtime.py
+      - scripts/patch_arm32_qemu_append_v9_1.py
+      - scripts/patch_utm_arm32_linux_wizard_v9.py
+      - scripts/build_utm_se.sh
+      - scripts/build_dyld_safe_lite.sh
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: utm-n95-omap2420-v10-1-runtime-fix-ipa
+  cancel-in-progress: true
+
+env:
+  UTM_SHA: 7eadb056ae0f91d979059544d0ddcd2d5a40be92
+  BASELINE_SHA256: 671535ffec7f866688537ee86db8c5eb53aeccbd78f3fc517dcb9dcf871e6caa
+  BUNDLE_PREFIX: com.phai.nokias60.omapdiag101
+  IPA_NAME: NokiaUTM-SE-Lite-v10-1-OMAP2420-Diagnostic-unsigned.ipa
+
+jobs:
+  omap2420-v10-1:
+    name: Build UTM SE Lite v10.1 OMAP2420 iPhone runtime fix (8 engines, iOS 15+, no-JIT)
+    runs-on: macos-26
+    timeout-minutes: 120
+    steps:
+      - name: Checkout isolated OMAP2420 v10.1 runtime repair branch
+        uses: actions/checkout@v4
+
+      - name: Checkout exact pinned UTM with submodules
+        uses: actions/checkout@v4
+        with:
+          repository: utmapp/UTM
+          ref: 7eadb056ae0f91d979059544d0ddcd2d5a40be92
+          path: upstream/UTM
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Download official matching seven-engine sysroot
+        uses: actions/download-artifact@v4
+        with:
+          name: Sysroot-ios-tci-arm64
+          repository: utmapp/UTM
+          run-id: 36090554968
+          github-token: ${{ github.token }}
+          path: upstream-artifact
+
+      - name: Download Gate D2e PASS ARM1136 OMAP2420 diagnostic framework
+        uses: actions/download-artifact@v4
+        with:
+          name: QEMU-OMAP2420-D2E-IOS-TCI-ARM32-RESEARCH-FRAMEWORK
+          repository: phai-nguyen/phai-nguyen-UTM-Nokia-S60-iOS
+          run-id: 37924268847
+          github-token: ${{ github.token }}
+          path: arm32-artifact
+
+      - name: Download Gate D2d guest bare-metal ARM1136 ELF (not Nokia ROM)
+        uses: actions/download-artifact@v4
+        with:
+          name: OMAP2420-D2D-ARM1136-GPT1-IRQ37-ELF
+          repository: phai-nguyen/phai-nguyen-UTM-Nokia-S60-iOS
+          run-id: 37917633717
+          github-token: ${{ github.token }}
+          path: omap-diagnostic-elf
+
+      - name: Download device-PASS Vietnamese v8 IPA (read only)
+        uses: actions/download-artifact@v4
+        with:
+          name: NokiaUTM-SE-Lite-v8-TiengViet-IPA
+          repository: phai-nguyen/phai-nguyen-UTM-Nokia-S60-iOS
+          run-id: 37788063413
+          github-token: ${{ github.token }}
+          path: baseline-v8
+
+      - name: Verify pins and stage eight QEMU engines in temporary sysroot
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          mkdir -p out/diagnostics/omap2420-v10
+          test "$(git -C upstream/UTM rev-parse HEAD)" = "$UTM_SHA"
+          test -s upstream-artifact/sysroot.tgz
+          test -s baseline-v8/NokiaUTM-SE-Lite-v8-TiengViet-unsigned.ipa
+          echo "$BASELINE_SHA256  baseline-v8/NokiaUTM-SE-Lite-v8-TiengViet-unsigned.ipa" |
+            shasum -a 256 -c - | tee out/diagnostics/omap2420-v10/v8-baseline-sha256-check.log
+          tar -xzf upstream-artifact/sysroot.tgz -C upstream/UTM
+          FWS="upstream/UTM/sysroot-ios-tci-arm64/Frameworks"
+          test -d "$FWS"
+          for arch in aarch64 i386 x86_64 ppc ppc64 riscv64 m68k; do
+            test -s "$FWS/qemu-$arch-softmmu.framework/qemu-$arch-softmmu"
+            shasum -a 256 "$FWS/qemu-$arch-softmmu.framework/qemu-$arch-softmmu" \
+              >> out/diagnostics/omap2420-v10/seven-before.sha256
+          done
+          test -s arm32-artifact/qemu-arm-softmmu.framework/qemu-arm-softmmu
+          python3 - <<'PY'
+          from pathlib import Path
+          expected = ("omap2420-earlydiag", "omap2420-uartdiag",
+                      "omap2420-intcdiag", "omap2420-timerdiag")
+          fw = Path("arm32-artifact/qemu-arm-softmmu.framework/qemu-arm-softmmu")
+          binary = fw.read_bytes()
+          for name in expected:
+              assert (name+"-machine").encode()+b"\x00" in binary, f"missing QOM machine {name}"
+              print(f"V10_D2E_QOM_MACHINE={name}:PASS")
+          print("V10_FOUR_OMAP_MACHINE_NAMES_IN_D2E_FRAMEWORK=PASS")
+          PY
+          test -s omap-diagnostic-elf/arm1136_d2d_prcm_gpt1.elf
+          file omap-diagnostic-elf/arm1136_d2d_prcm_gpt1.elf | tee out/diagnostics/omap2420-v10/arm1136-guest-elf-info.txt
+          shasum -a 256 omap-diagnostic-elf/arm1136_d2d_prcm_gpt1.elf > out/diagnostics/omap2420-v10/arm1136-guest-sha256.txt
+          echo 'V10_ARM1136_GUEST_ELF=PASS'
+          test ! -e "$FWS/qemu-arm-softmmu.framework"
+          cp -R arm32-artifact/qemu-arm-softmmu.framework "$FWS/"
+          test -s "$FWS/qemu-arm-softmmu.framework/qemu-arm-softmmu"
+          file "$FWS/qemu-arm-softmmu.framework/qemu-arm-softmmu" | tee out/diagnostics/omap2420-v10/arm32-file.txt
+          xcrun lipo -info "$FWS/qemu-arm-softmmu.framework/qemu-arm-softmmu" |
+            tee out/diagnostics/omap2420-v10/arm32-lipo.txt
+          otool -L "$FWS/qemu-arm-softmmu.framework/qemu-arm-softmmu" |
+            tee out/diagnostics/omap2420-v10/arm32-dylib-imports.txt
+          grep -F arm64 out/diagnostics/omap2420-v10/arm32-file.txt
+          shasum -a 256 "$FWS/qemu-arm-softmmu.framework/qemu-arm-softmmu" \
+            > out/diagnostics/omap2420-v10/arm32-input.sha256
+          xcodebuild -version | tee out/diagnostics/omap2420-v10/xcode-version.txt
+          echo "UTM_SHA=$UTM_SHA" | tee out/diagnostics/omap2420-v10/provenance.txt
+          echo 'EXPECTED_QEMU_ENGINES=8' >> out/diagnostics/omap2420-v10/provenance.txt
+          echo 'ESIGN=UNSIGNED' >> out/diagnostics/omap2420-v10/provenance.txt
+          echo 'NOKIA_OMAP2420=NOT_IMPLEMENTED' >> out/diagnostics/omap2420-v10/provenance.txt
+
+      - name: Apply pinned iOS SDK compatibility
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 scripts/patch_utm_ios26.py upstream/UTM \
+            2>&1 | tee out/diagnostics/omap2420-v10/sdk-compat.log
+
+      - name: Preserve tested UIKit file picker and bundled ISO handling
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 scripts/patch_utm_uikit_copy_picker.py upstream/UTM \
+            2>&1 | tee out/diagnostics/omap2420-v10/uikit-picker.log
+          python3 scripts/patch_utm_bundled_iso_drive.py upstream/UTM \
+            2>&1 | tee out/diagnostics/omap2420-v10/bundled-iso.log
+          grep -F 'EKA2L1_STYLE_UIKIT_PICKER_PATCH=PASS' out/diagnostics/omap2420-v10/uikit-picker.log
+          grep -F 'BUNDLED_CD_PATCH=PASS' out/diagnostics/omap2420-v10/bundled-iso.log
+
+      - name: Enable Linux ARM32 virt in normal machine wizard
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 scripts/patch_utm_arm32_linux_wizard_v9.py upstream/UTM \
+            2>&1 | tee out/diagnostics/omap2420-v10/arm32-wizard.log
+          grep -F 'ARM32_LINUX_WIZARD_PATCH=PASS' out/diagnostics/omap2420-v10/arm32-wizard.log
+          (
+            cd upstream/UTM
+            git diff --check
+            git diff -- Platform/Shared/VMWizardHardwareView.swift
+          ) > out/diagnostics/omap2420-v10/swift-wizard-diff.txt
+
+      - name: Register new OMAP2420 diagnostic machine in iOS UTM wizard
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 scripts/patch_utm_omap2420_diagnostic_v10.py upstream/UTM \
+            2>&1 | tee out/diagnostics/omap2420-v10/omap2420-wizard-patch.log
+          grep -F 'V10_OMAP2420_DIAGNOSTIC_WIZARD=PASS' out/diagnostics/omap2420-v10/omap2420-wizard-patch.log
+          (cd upstream/UTM && git diff --check && \
+            git diff -- Configuration/QEMUConstantGenerated.swift \
+            Platform/Shared/VMWizardHardwareView.swift Platform/Shared/VMWizardState.swift) \
+            > out/diagnostics/omap2420-v10/omap2420-wizard-diff.txt
+          echo 'V10_ARM1136_QEMU_MACHINE_WIZARD=PASS'
+
+      - name: Fix ARM32 kernel command line (one -append argv token)
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 scripts/patch_arm32_qemu_append_v9_1.py upstream/UTM \
+            2>&1 | tee out/diagnostics/omap2420-v10/append-argv-patch.log
+          grep -F 'ARM32_APPEND_ARGV_FIX=PASS' out/diagnostics/omap2420-v10/append-argv-patch.log
+          grep -F 'NokiaUTM_ARM32_APPEND_FIX' upstream/UTM/Configuration/UTMQemuConfiguration+Arguments.swift
+          (cd upstream/UTM && git diff --check && \
+            git diff -- Configuration/UTMQemuConfiguration+Arguments.swift) \
+            > out/diagnostics/omap2420-v10/append-argv-diff.txt
+          echo 'ARM32_V9_1_APPEND_FIX_STAGED=PASS'
+
+      - name: Disable unsupported VirtIO guest-agent and enable diagnostic ARM1136 semihosting
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 scripts/patch_utm_omap2420_v10_1_runtime.py upstream/UTM \
+            2>&1 | tee out/diagnostics/omap2420-v10/v10-1-runtime-patch.log
+          grep -Fx 'V10_1_OMAP2420_RUNTIME_PATCH=PASS' out/diagnostics/omap2420-v10/v10-1-runtime-patch.log
+          grep -F 'NokiaUTM_V10_1_NO_VIRTIO_AGENT' upstream/UTM/Configuration/QEMUConstant.swift
+          grep -F 'NokiaUTM_V10_1_ARM1136_SEMIHOSTING' upstream/UTM/Configuration/UTMQemuConfiguration+Arguments.swift
+          (cd upstream/UTM && git diff --check && \
+            git diff -- Configuration/QEMUConstant.swift Configuration/UTMQemuConfiguration+Arguments.swift) \
+            > out/diagnostics/omap2420-v10/v10-1-runtime-diff.txt
+          echo 'V10_1_RUNTIME_SOURCE_GUARD=PASS'
+
+      - name: Build ARM32 v10.1 app and inject framework before IPA staging
+        shell: bash
+        env:
+          ARM32_EXTRA_FRAMEWORK: upstream/UTM/sysroot-ios-tci-arm64/Frameworks/qemu-arm-softmmu.framework
+        run: |
+          set -Eeuo pipefail
+          bash scripts/build_utm_se.sh
+          test -s out/diagnostics/omap2420-v10-injected-framework.sha256
+          echo 'ARM32_ARCHIVE_IPA_STAGING=PASS'
+
+      - name: Verify ARM32 engine actually embedded in Xcode archive
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          APP="out/UTMSE.xcarchive/Products/Applications/UTM SE.app"
+          test -s "$APP/Frameworks/qemu-arm-softmmu.framework/qemu-arm-softmmu"
+          for arch in arm aarch64 i386 x86_64 ppc ppc64 riscv64 m68k; do
+            test -s "$APP/Frameworks/qemu-$arch-softmmu.framework/qemu-$arch-softmmu"
+          done
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist" |
+            tee out/diagnostics/omap2420-v10/bundle-id.txt
+          grep -Fx 'com.phai.nokias60.omapdiag101.UTM-SE' out/diagnostics/omap2420-v10/bundle-id.txt
+          /usr/libexec/PlistBuddy -c 'Print :MinimumOSVersion' "$APP/Info.plist" |
+            tee out/diagnostics/omap2420-v10/minimum-ios.txt
+          grep -Fx '15.0' out/diagnostics/omap2420-v10/minimum-ios.txt
+          otool -L "$APP/Frameworks/qemu-arm-softmmu.framework/qemu-arm-softmmu" \
+            > out/diagnostics/omap2420-v10/arm32-archive-otool.txt
+          test -s out/diagnostics/omap2420-v10-injected-framework.sha256
+          python3 - <<'PY'
+          import hashlib
+          from pathlib import Path
+          app = Path("out/UTMSE.xcarchive/Products/Applications/UTM SE.app/Frameworks/qemu-arm-softmmu.framework/qemu-arm-softmmu")
+          src = Path("upstream/UTM/sysroot-ios-tci-arm64/Frameworks/qemu-arm-softmmu.framework/qemu-arm-softmmu")
+          assert hashlib.sha256(app.read_bytes()).digest() == hashlib.sha256(src.read_bytes()).digest()
+          print("ARM32_EMBEDDED_SHA256_MATCH=PASS")
+          PY
+          echo 'ARM32_ARCHIVE_ENGINE=PASS'
+
+      - name: Package separate Lite v9 IPA while preserving all engines
+        shell: bash
+        env:
+          REQUIRE_ARM32: "1"
+        run: |
+          set -Eeuo pipefail
+          bash scripts/build_dyld_safe_lite.sh \
+            "$PWD/out/NokiaUTM-SE-v1-unsigned.ipa" \
+            "$PWD/out/NokiaUTM-SE-Lite-v10-1-OMAP2420-raw-unsigned.ipa" \
+            "$PWD/out/diagnostics/omap2420-v10/lite" \
+            2>&1 | tee out/diagnostics/omap2420-v10/lite-package.log
+
+      - name: Overlay validated Vietnamese resources from v8
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 scripts/overlay_omap2420_v10_1_vi_locale.py \
+            baseline-v8/NokiaUTM-SE-Lite-v8-TiengViet-unsigned.ipa \
+            out/NokiaUTM-SE-Lite-v10-1-OMAP2420-raw-unsigned.ipa \
+            "out/$IPA_NAME" \
+            out/diagnostics/omap2420-v10/v10-locale-verification.json \
+            2>&1 | tee out/diagnostics/omap2420-v10/overlay-locale.log
+          grep -F '"status": "PASS"' out/diagnostics/omap2420-v10/v10-locale-verification.json
+
+      - name: Validate ARM32 framework and 7 baseline engines in final IPA
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 - <<'PY'
+          import json, os, plistlib, zipfile
+          from pathlib import Path
+          p=Path('out') / os.environ['IPA_NAME']
+          a=json.loads(Path('out/diagnostics/omap2420-v10/v10-locale-verification.json').read_text())
+          assert a['status'] == 'PASS' and a['framework_count'] == 8
+          with zipfile.ZipFile(p) as z:
+              assert z.testzip() is None
+              prefix="Payload/UTM SE.app/"
+              info=plistlib.loads(z.read(prefix+"Info.plist"))
+              assert info['CFBundleIdentifier'] == 'com.phai.nokias60.omapdiag101.UTM-SE'
+              assert info['MinimumOSVersion'] == '15.0'
+              assert info['CFBundleDisplayName'] == 'UTM OMAP Diag v10.1'
+              arm = z.read(prefix+"Frameworks/qemu-arm-softmmu.framework/qemu-arm-softmmu")
+              for name in ("omap2420-earlydiag","omap2420-uartdiag",
+                           "omap2420-intcdiag","omap2420-timerdiag"):
+                  assert (name+"-machine").encode()+b"\x00" in arm, name
+              print('V10_OMAP2420_FOUR_QOM_MACHINES_IN_FINAL_IPA=PASS')
+              assert 'vi' in info['CFBundleLocalizations']
+              for cpu in ("arm","aarch64","i386","x86_64","ppc","ppc64","riscv64","m68k"):
+                  member=prefix+f"Frameworks/qemu-{cpu}-softmmu.framework/qemu-{cpu}-softmmu"
+                  assert member in z.namelist()
+          print('ARM32_8_ENGINES_IN_IPA=PASS')
+          print('ARM32_IPA_CONTENT_CHECK=PASS')
+          print('IPHONE_DEVICE_BOOT=NOT_YET_TESTED')
+          PY
+          shasum -a 256 "out/$IPA_NAME" | tee out/diagnostics/omap2420-v10/final-ipa-sha256.txt
+          echo "STATUS=PASS" | tee out/diagnostics/omap2420-v10/BUILD-STATUS.txt
+          {
+            echo '### UTM SE Lite v10.1 — ARM1136 OMAP2420 diagnostic IPA (NOT Nokia N95)'
+            echo '- Independently installable: com.phai.nokias60.omapdiag101.UTM-SE'
+            echo '- 8 QEMU engines (original 7 + arm-softmmu) packaged'
+            echo '- Pinned UTM source and iOS TCI/no-JIT ARM32 framework'
+            echo '- OMAP2420 DIAGNOSTIC (ARM1136, 128MiB, UART1, INTC, PRCM/GPTimer1); no Nokia firmware'
+            echo '- ESign unsigned IPA; Vietnamese localization from device-tested v8'
+            echo '- ARM32 virt Linux v9.1 option preserved, diagnostic ELF via Linux kernel picker'
+            echo '- iPhone OMAP2420 diagnostic CPU/UART test: **PENDING**; Linux ARMv7 boot baseline v9 unaffected'
+            echo '- Nokia N95 hardware and Symbian boot: NOT IMPLEMENTED'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload OMAP2420 diagnostic Lite v10.1 IPA for ESign
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: NokiaUTM-SE-Lite-v10-1-OMAP2420-Diagnostic-IPA
+          path: out/NokiaUTM-SE-Lite-v10-OMAP2420-Diagnostic-unsigned.ipa
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload ARM1136 bare-metal diagnostic ELF (test payload, not Nokia firmware)
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: NokiaUTM-SE-Lite-v10-1-ARM1136-Diagnostic-ELF
+          path: omap-diagnostic-elf/arm1136_d2d_prcm_gpt1.elf
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload OMAP2420 v10.1 IPA build and validation logs even if failed
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: NokiaUTM-SE-Lite-v10-1-OMAP2420-Diagnostic-LOGS
+          path: out/diagnostics/
+          if-no-files-found: warn
+          retention-days: 14
