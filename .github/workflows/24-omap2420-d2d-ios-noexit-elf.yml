@@ -1,0 +1,82 @@
+name: OMAP2420-D2D-IOS-NOEXIT-ARM1136-ELF
+
+on:
+  push:
+    branches:
+      - fix/utm-se-lite-v10-1-omap2420-virtio-boot
+    paths:
+      - .github/workflows/24-omap2420-d2d-ios-noexit-elf.yml
+      - tests/omap2420/arm1136_d2d_ios_uart_paced_noexit.S
+      - tests/omap2420/arm1136_ios_uart_noexit.ld
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  d2d-iphone-elf:
+    name: Build ARM1136 PRCM GPTimer1 IRQ37 iPhone ELF (no SYS_EXIT)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install ARMv6 assembler/linker
+        run: |
+          set -Eeuo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends binutils-arm-linux-gnueabi
+      - name: Build baremetal ELF and audit boot address and UART markers
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          mkdir -p out/omap2420-d2d-ios
+          SRC=tests/omap2420/arm1136_d2d_ios_uart_paced_noexit.S
+          OBJ=out/omap2420-d2d-ios/arm1136_d2d_ios_uart_paced_noexit.o
+          ELF=out/omap2420-d2d-ios/arm1136_d2d_ios_uart_paced_noexit.elf
+          arm-linux-gnueabi-as -march=armv6 "$SRC" -o "$OBJ"
+          arm-linux-gnueabi-ld -T tests/omap2420/arm1136_ios_uart_noexit.ld             -z max-page-size=0x1000 -o "$ELF" "$OBJ"
+          file "$ELF" | tee out/omap2420-d2d-ios/elf-file.txt
+          arm-linux-gnueabi-readelf -h -l "$ELF"             | tee out/omap2420-d2d-ios/elf-program-headers.txt
+          arm-linux-gnueabi-objdump -d "$ELF"             > out/omap2420-d2d-ios/armv6-disassembly.txt
+          grep -F 'Entry point address:               0x80010000'             out/omap2420-d2d-ios/elf-program-headers.txt
+          grep -F 'Machine:                           ARM'             out/omap2420-d2d-ios/elf-program-headers.txt
+          ! grep -Eq '(^|[[:space:]])svc([[:space:]]|$)'             out/omap2420-d2d-ios/armv6-disassembly.txt
+          ! grep -Eiq '(^|[[:space:]])movw([[:space:]]|$)'             out/omap2420-d2d-ios/armv6-disassembly.txt
+          python3 - <<'PY'
+          from pathlib import Path
+          elf=Path("out/omap2420-d2d-ios/arm1136_d2d_ios_uart_paced_noexit.elf").read_bytes()
+          src=Path("tests/omap2420/arm1136_d2d_ios_uart_paced_noexit.S").read_text()
+          for marker in (
+              "D2D_IOS_ARM1136_UART_START=PASS",
+              "D2D_PRCM_GPT1_CLOCK_GATING=PASS",
+              "D2D_GPT1_OVERFLOW_TISR_TIER=PASS",
+              "D2D_GPT1_INTC_IRQ37_PENDING_MASK_ACK=PASS",
+              "D2D_ARM1136_GPT1_IRQ_EXCEPTION=PASS",
+              "D2D_GPT1_SOFTRESET=PASS",
+              "D2D_D2A_ARMV6_MEMORY=PASS",
+          ):
+              assert marker.encode() in elf, f"missing {marker}"
+          assert "svc #0x123456" not in src
+          assert "strb r0, [r4]" in src
+          assert "b .Lios_pass_idle" in src and "b .Lios_fail_idle" in src
+          print("ARM1136_D2D_IOS_UART_PACED_NOEXIT_ELF_STATIC=PASS")
+          print("IPHONE_D2D_DEVICE_TEST=NOT_YET_TESTED")
+          PY
+          sha256sum "$ELF" | tee out/omap2420-d2d-ios/elf-sha256.txt
+          echo 'ELF_BUILD_STATUS=PASS' | tee out/omap2420-d2d-ios/BUILD-STATUS.txt
+      - name: Publish ELF for iPhone UTM v10.1 existing installation
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ARM1136-OMAP2420-D2D-IOS-UART-PACED-NOEXIT-ELF
+          path: out/omap2420-d2d-ios/arm1136_d2d_ios_uart_paced_noexit.elf
+          if-no-files-found: error
+          retention-days: 14
+      - name: Publish ELF diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ARM1136-OMAP2420-D2D-IOS-NOEXIT-DIAGNOSTICS
+          path: out/omap2420-d2d-ios/
+          if-no-files-found: warn
+          retention-days: 14
