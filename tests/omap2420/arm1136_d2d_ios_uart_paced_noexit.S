@@ -248,7 +248,7 @@ write_uart:
     /* QEMU TCI/16550 delivers UART bytes asynchronously; fast back-to-back
      * THR writes can drop the start of the line. Give it breathing room.
      * No LSR polling here: initial iOS LSR-poll smoke guest printed nothing. */
-    movw r2, #0x6000
+    ldr r2, =0x6000
 .Luart_send_delay:
     subs r2, r2, #1
     bne .Luart_send_delay
