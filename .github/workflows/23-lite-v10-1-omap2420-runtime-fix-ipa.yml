@@ -317,7 +317,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: NokiaUTM-SE-Lite-v10-1-OMAP2420-Diagnostic-IPA
-          path: out/NokiaUTM-SE-Lite-v10-OMAP2420-Diagnostic-unsigned.ipa
+          path: out/NokiaUTM-SE-Lite-v10-1-OMAP2420-Diagnostic-unsigned.ipa
           compression-level: 0
           if-no-files-found: error
           retention-days: 14
